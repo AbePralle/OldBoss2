@@ -1,0 +1,242 @@
+module Boss
+uses ParseKit<<Boss>>
+
+#==============================================================================
+# Cmd Nodes (Parse Tree / AST)
+#==============================================================================
+augment Cmd
+  METHODS
+    method execute
+      throw UnsupportedOperationError()
+
+    method execute_int32->Int32
+      throw UnsupportedOperationError()
+
+    method require_type->BossType
+      local result = type
+      if (result is null) throw t.error( "Value required." )
+      return result
+
+    method require_value->this
+      if (type is null) throw t.error( "Value required." )
+      return this
+
+    method resolve->Cmd
+      throw UnsupportedOperationError()
+
+    method resolve_assignment( new_value:Cmd )->Cmd
+      throw t.error( "Illegal assignment" )
+
+    method type->BossType
+      return null
+endAugment
+
+augment CmdStatements
+  METHODS
+    method execute
+      (forEach in this).execute
+
+    method resolve->Cmd
+      forEach (statement at index in this)
+        this[ index ] = statement.resolve
+      endForEach
+endAugment
+
+augment CmdArgs
+  METHODS
+    method resolve->Cmd
+      forEach (arg at index in args)
+        args[ index ] = arg.resolve
+        # TODO: require_value
+      endForEach
+endAugment
+
+augment CmdUnary
+  METHODS
+    method resolve->Cmd
+      operand = operand.resolve
+      return this
+
+    method type->BossType
+      return operand.type
+endAugment
+
+class BossCmdUnary<<$SYMBOL>> : CmdUnary
+  METHODS
+    method execute
+      operand.execute
+
+    method execute_int32->Int32
+      return $SYMBOL operand.execute_int32
+
+    method op->String
+      return $string($SYMBOL)
+endClass
+
+augment CmdBinary
+  METHODS
+    method resolve->Cmd
+      left = left.resolve
+      right = right.resolve
+      return resolve_for_types( left.require_type, right.require_type )
+
+    method resolve_for_types( left_type:BossType, right_type:BossType )->Cmd
+      throw UnsupportedOperationError()
+
+    method type->BossType
+      return left.type
+endAugment
+
+class CmdBinaryOp<<$SYMBOL>> : CmdBinary
+  METHODS
+    method execute
+      left.execute
+      right.execute
+
+    method execute_int32->Int32
+      return left.execute_int32 $SYMBOL right.execute_int32
+
+    method op->String
+      return $string($SYMBOL)
+
+    method resolve_for_types( left_type:BossType, right_type:BossType )->Cmd
+      require (left_type is right_type)
+      contingent
+        necessary (left_type.is_primitive)
+      endContingent
+      return this
+endClass
+
+class CmdLiteralInteger( t, value:Int32 ) : Cmd
+  METHODS
+    method execute
+      noAction
+
+    method execute_int32->Int32
+      return value
+
+    method resolve->Cmd
+      return this
+
+    method to->String
+      return value
+
+    method type->BossType
+      return BossVM.type_Int32
+
+endClass
+
+class CmdAdd : CmdBinaryOp<<+>>
+  METHODS
+endClass
+
+class CmdSubtract : CmdBinaryOp<<->>
+  METHODS
+endClass
+
+class CmdMultiply : CmdBinaryOp<<*>>
+  METHODS
+endClass
+
+class CmdDivide : CmdBinary
+  METHODS
+    method execute_int32->Int32
+      local rhs = right.execute_int32
+      if (rhs == 0) throw t.error( "Illegal division by zero." )
+      return left.execute_int32 / rhs
+
+    method op->String
+      return "/"
+endClass
+
+class CmdMod : CmdBinary
+  METHODS
+    method execute_int32->Int32
+      local rhs = right.execute_int32
+      if (rhs == 0) throw t.error( "Illegal modulo by zero." )
+      return left.execute_int32 % rhs
+
+    method op->String
+      return "%"
+endClass
+
+class CmdPower : CmdBinaryOp<<^>>
+  METHODS
+endClass
+
+class CmdBitwiseXor : CmdBinaryOp<<~>>
+  METHODS
+endClass
+
+class CmdBitwiseOr : CmdBinaryOp<<|>>
+  METHODS
+endClass
+
+class CmdBitwiseAnd : CmdBinaryOp<<&>>
+  METHODS
+endClass
+
+class CmdLeftShift : CmdBinaryOp<<:<<:>>
+  METHODS
+    method op->String
+      return ":<<:"
+endClass
+
+class CmdRightShift : CmdBinaryOp<<:>>:>>
+  METHODS
+    method op->String
+      return ":>>:"
+endClass
+
+class CmdRightShiftX : CmdBinaryOp<<:>>>:>>
+  METHODS
+    method op->String
+      return ":>>>:"
+endClass
+
+class CmdNegate : BossCmdUnary<<->>
+  METHODS
+endClass
+
+class CmdBitwiseNot : BossCmdUnary<<!>>
+  METHODS
+endClass
+
+class CmdAssign( t, left:Cmd, right:Cmd ) : Cmd
+  METHODS
+    method resolve->Cmd
+      return left.resolve_assignment( right.resolve )
+
+    method to->String
+      return "$ = $" (left,right)
+endClass
+
+class CmdAccess( t, name:String ) : Cmd
+  METHODS
+    method init( t )
+      name = t->String
+
+    method resolve->Cmd
+      return CmdReadVariable( t, name ).resolve
+
+    method resolve_assignment( new_value:Cmd )->Cmd
+      return CmdWriteVariable( t, name, new_value ).resolve
+
+    method to->String
+      return name
+endClass
+
+class CmdReadVariable( t, name:String ) : Cmd
+  METHODS
+    method execute_int32->Int32
+      trace "TODO"
+      return 0
+endClass
+
+class CmdWriteVariable( t, name:String, new_value:Cmd ) : Cmd
+  METHODS
+    method execute_int32->Int32
+      trace "TODO"
+      return 0
+endClass
+

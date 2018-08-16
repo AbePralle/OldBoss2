@@ -1,0 +1,13 @@
+module Boss
+uses ParseKit<<Boss>>
+
+#==============================================================================
+# BossScope
+#==============================================================================
+class BossScope [singleton]
+  PROPERTIES
+    this_type : BossType
+
+  METHODS
+    method init( this_type )
+endClass

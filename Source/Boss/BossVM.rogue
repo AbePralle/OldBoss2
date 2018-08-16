@@ -1,0 +1,70 @@
+module Boss
+uses ParseKit<<Boss>>
+
+#==============================================================================
+# BossVM
+#==============================================================================
+class BossVM [singleton]
+  PROPERTIES
+    parser = BossParser( this )
+    scope  : BossScope
+
+    sp          : Int32
+    int32_stack = Int32[]
+
+    internal_t  : Token
+    types       = StringTable<<BossType>>()
+
+    type_Global : BossType
+    type_Int32  : BossType
+
+    last_error  : BossError
+
+  METHODS
+    method init_object
+      internal_t = Token( TokenType.EOI, "[BossVM]", 0, 0 )
+
+      type_Global = type( "Global" )
+      type_Int32  = type( "Int32" ).[ base_type=BossType.BASE_TYPE_PRIMITIVE ]
+
+    method init
+      BossVM = this  # assign singleton
+
+    method parse( filepath:String, source:String, scope, global_statement_buffer:CmdStatements )->Logical
+      try
+        BossVM = this   # assign singleton
+        parser.set_source( filepath, source )
+        parser.parse_multi_line_statements( global_statement_buffer )
+        return true
+      catch (err:BossError)
+        err.print( source )
+        return false
+      endTry
+
+      #{
+    method resolve->Logical
+      try
+        BossVM = this   # assign singleton
+        # TODO
+        return true
+      catch (err:BossError)
+        last_error = err
+        err.print( source )
+        return false
+      endTry
+      }#
+
+    method type( t:Token, name:String )->BossType
+      local result = types[ name ]
+      if (result)
+        if (result.t is internal_t) result.t = t
+      else
+        result = BossType( t, name )
+        types[ name ] = result
+      endIf
+      return result
+
+    method type( name:String )->BossType
+      return type( internal_t, name )
+endClass
+

@@ -1,0 +1,25 @@
+module Boss
+uses ParseKit<<Boss>>
+
+class BossType
+  DEFINITIONS
+    BASE_TYPE_MASK      = 0b11
+    BASE_TYPE_PRIMITIVE = 0
+    BASE_TYPE_OBJECT    = 1
+
+  PROPERTIES
+    t          : Token
+    name       : String
+    attributes : Int32
+
+  METHODS
+    method init( t, name )
+
+    method is_primitive->Logical
+      return ((attributes & BASE_TYPE_MASK) == BASE_TYPE_PRIMITIVE)
+
+    method set_base_type( new_base_type:Int32 )
+      attributes &= !BASE_TYPE_MASK
+      attributes |= new_base_type
+
+endClass

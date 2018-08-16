@@ -1,0 +1,33 @@
+$include "Boss"
+
+uses Boss
+uses ParseKit<<Boss>>
+
+BossConsole()
+
+class BossConsole
+  PROPERTIES
+    vm = BossVM() : BossVM
+
+  METHODS
+    method init
+      loop
+        local global_statements = CmdStatements()
+        local cmd = Console.input( "Boss> " )
+        vm.parse( "[Console]", cmd, vm.type("Global"), global_statements )
+        #{
+        try
+          BossVM = this   # assign singleton
+          global_statement_buffer.resolve
+          return true
+        catch (err:BossError)
+          err.print( cmd )
+          return false
+        endTry
+        }#
+
+        #forEach (statement at index in global_statements)
+        #endForEach
+        escapeLoop
+      endLoop
+endClass
