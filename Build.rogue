@@ -20,11 +20,11 @@ endRoutine
 
 routine rogo_boss
   File.create_folder( "Build" )
-  local exe = "Boss-$" (System.os)
-  if (Files("Source/*.rogue").any_newer_than(exe))
-    execute( "roguec Source/BossConsole.rogue --output=Build/$ --compile" (exe) )
+  local exe = "Build/Boss-$" (System.os)
+  if (Files("Source","**.rogue").any_newer_than(exe))
+    execute( "roguec Source/BossConsole.rogue --debug --output=$ --compile" (exe) )
   endIf
-  execute( "Build/$" (exe) )
+  execute( "$" (exe) )
 endRoutine
 
 routine execute( commands:String, &suppress_error )->Logical

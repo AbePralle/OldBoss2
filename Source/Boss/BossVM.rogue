@@ -24,8 +24,8 @@ class BossVM [singleton]
     method init_object
       internal_t = Token( TokenType.EOI, "[BossVM]", 0, 0 )
 
-      type_Global = type( "Global" )
-      type_Int32  = type( "Int32" ).[ base_type=BossType.BASE_TYPE_PRIMITIVE ]
+      type_Global = type( "Global", BossType.OBJECT )
+      type_Int32  = type( "Int32", BossType.INT32 )
 
     method init
       BossVM = this  # assign singleton
@@ -37,7 +37,7 @@ class BossVM [singleton]
         parser.parse_multi_line_statements( global_statement_buffer )
         return true
       catch (err:BossError)
-        err.print( source )
+        err.print
         return false
       endTry
 
@@ -54,17 +54,20 @@ class BossVM [singleton]
       endTry
       }#
 
-    method type( t:Token, name:String )->BossType
+    method type( t:Token, name:String, attributes:Int32 )->BossType
       local result = types[ name ]
       if (result)
-        if (result.t is internal_t) result.t = t
+        if (result.t is internal_t)
+          result.t = t
+          result.attributes = attributes
+        endIf
       else
-        result = BossType( t, name )
+        result = BossType( t, name, attributes )
         types[ name ] = result
       endIf
       return result
 
-    method type( name:String )->BossType
-      return type( internal_t, name )
+    method type( name:String, attributes=BossType.UNDEFINED:Int32 )->BossType
+      return type( internal_t, name, attributes )
 endClass
 

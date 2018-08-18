@@ -36,7 +36,7 @@ augment CmdStatements
     method execute
       (forEach in this).execute
 
-    method resolve->Cmd
+    method resolve
       forEach (statement at index in this)
         this[ index ] = statement.resolve
       endForEach
@@ -107,7 +107,7 @@ class CmdBinaryOp<<$SYMBOL>> : CmdBinary
       return this
 endClass
 
-class CmdLiteralInteger( t, value:Int32 ) : Cmd
+class CmdLiteralInt32( t, value:Int32 ) : Cmd
   METHODS
     method execute
       noAction

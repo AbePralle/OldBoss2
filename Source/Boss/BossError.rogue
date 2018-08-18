@@ -6,14 +6,8 @@ uses ParseKit<<Boss>>
 
 class BossError : ParseError
   METHODS
-    method print( source:String )
-      Console.error.print( "ERROR: " ).println( message )
-      Console.error.println
-      forEach (line at index in LineReader(source))
-        Console.error.println( line )
-        if (index+1 == this.line) escapeForEach
-      endForEach
-      Console.error.print( " " * (column-1) ).println( '^' )
+    method print
+      Console.error.println this->String
 endClass
 
 

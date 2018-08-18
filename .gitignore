@@ -1,6 +1,7 @@
 Build
 Test.boss
 .rogo
+BuildLocal.rogue
 
 *.swp
 .DS_Store

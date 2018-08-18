@@ -57,7 +57,7 @@ class BossParser : Parser
       rule.on( "integer",
         function( parser:BossParser )->Cmd
           local t = parser.read
-          return CmdLiteralInteger(t,t->Int32)
+          return CmdLiteralInt32(t,t->Int32)
         endFunction
       )
       rule.on( "(",

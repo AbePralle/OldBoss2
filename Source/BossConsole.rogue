@@ -15,19 +15,27 @@ class BossConsole
         local global_statements = CmdStatements()
         local cmd = Console.input( "Boss> " )
         vm.parse( "[Console]", cmd, vm.type("Global"), global_statements )
-        #{
-        try
-          BossVM = this   # assign singleton
-          global_statement_buffer.resolve
-          return true
-        catch (err:BossError)
-          err.print( cmd )
-          return false
-        endTry
-        }#
 
-        #forEach (statement at index in global_statements)
-        #endForEach
-        escapeLoop
+        try
+          BossVM = vm
+          global_statements.resolve
+        catch (err:BossError)
+          err.print
+          nextIteration
+        endTry
+
+        forEach (statement at index in global_statements)
+          local type = statement.type
+          if (type)
+            if (type.is_int32)
+              println statement.execute_int32
+            else
+              statement.execute
+            endIf
+          else
+            statement.execute
+          endIf
+        endForEach
+
       endLoop
 endClass

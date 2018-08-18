@@ -3,9 +3,10 @@ uses ParseKit<<Boss>>
 
 class BossType
   DEFINITIONS
-    BASE_TYPE_MASK      = 0b11
-    BASE_TYPE_PRIMITIVE = 0
-    BASE_TYPE_OBJECT    = 1
+    MASK      = 0b1111
+    INT32     = 0b0000
+    OBJECT    = 0b1000
+    UNDEFINED = 0b1111
 
   PROPERTIES
     t          : Token
@@ -13,13 +14,12 @@ class BossType
     attributes : Int32
 
   METHODS
-    method init( t, name )
+    method init( t, name, attributes )
+
+    method is_int32->Logical
+      return ((attributes & MASK) == INT32)
 
     method is_primitive->Logical
-      return ((attributes & BASE_TYPE_MASK) == BASE_TYPE_PRIMITIVE)
-
-    method set_base_type( new_base_type:Int32 )
-      attributes &= !BASE_TYPE_MASK
-      attributes |= new_base_type
+      return ((attributes & MASK) < OBJECT)
 
 endClass
