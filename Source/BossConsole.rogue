@@ -25,15 +25,9 @@ class BossConsole
         endTry
 
         forEach (statement at index in global_statements)
-          local type = statement.type
-          if (type)
-            if (type.is_int32)
-              println statement.execute_int32
-            else
-              statement.execute
-            endIf
-          else
-            statement.execute
+          local result = statement.execute
+          if (result.is_defined)
+            println result->String
           endIf
         endForEach
 

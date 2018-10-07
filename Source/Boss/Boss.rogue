@@ -9,6 +9,7 @@ $include "Boss/BossScope.rogue"
 $include "Boss/BossTokenizer.rogue"
 $include "Boss/BossTokenType.rogue"
 $include "Boss/BossType.rogue"
+$include "Boss/BossValue.rogue"
 $include "Boss/BossVM.rogue"
 
 $include "ParseKit"

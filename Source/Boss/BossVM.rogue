@@ -4,13 +4,27 @@ uses ParseKit<<Boss>>
 #==============================================================================
 # BossVM
 #==============================================================================
-class BossVM [singleton]
-  PROPERTIES
-    parser = BossParser( this )
-    scope  : BossScope
+class BossVM
+  ENUMERATE
+    TYPE_UNDEFINED =  0
+    TYPE_NULL      =  1
+    TYPE_LOGICAL   =  2
+    TYPE_CHARACTER =  3
+    TYPE_INTEGER   =  4
+    TYPE_REAL      =  5
+    TYPE_XY        =  6
+    TYPE_BOX       =  7
+    TYPE_OBJECT    =  8
+    TYPE_VALUE     =  9
+    TYPE_STRING    = 10
+    TYPE_LIST      = 11
+    TYPE_TABLE     = 12
 
-    sp          : Int32
-    int32_stack = Int32[]
+  PROPERTIES
+    parser      = BossParser( this )
+    scope       : BossScope
+
+    stack       = BossValue[]
 
     internal_t  : Token
     types       = StringTable<<BossType>>()
