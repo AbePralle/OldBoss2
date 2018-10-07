@@ -3,8 +3,6 @@ class CustomBossValue
   METHODS
     method add( other:BossValue )
 
-    method add( other:BossValue[] )
-
     method add_all( other:BossValue )
 
     method apply( fn:Function(BossValue)->BossValue )
@@ -24,6 +22,12 @@ class CustomBossValue
     method count( query:(Function(BossValue)->Logical) )->Int32
       return 0
 
+    method first->BossValue
+      return UndefinedBossValue
+
+    method first( query:(Function(BossValue)->Logical) )->BossValue
+      return UndefinedBossValue
+
     method get( index:Int32 )->BossValue
       return UndefinedBossValue
 
@@ -33,11 +37,37 @@ class CustomBossValue
     method get( query:(Function(BossValue)->Logical) )->BossValue
       return UndefinedBossValue
 
+    method insert( value:BossValue, before_index:Int32 )
+
+    method insert_all( other:BossValue, before_index:Int32 )
+
     method is_collection->Logical
       return false
 
+    method last->BossValue
+      return UndefinedBossValue
+
+    method last( query:(Function(BossValue)->Logical) )->BossValue
+      return UndefinedBossValue
+
     method operator==( other:CustomBossValue )->Logical
       return this is other
+
+    method set( index:Int32, value:BossValue )
+
+    method set( key:String, value:BossValue )
+
+    method to->Byte
+      return 0
+
+    method to->Character
+      return 0
+
+    method to->Int32
+      return 0
+
+    method to->Int64
+      return 0
 
     method to->Logical
       return false
@@ -102,14 +132,17 @@ class BossValue( type:Int32, value:Int64, object=null:Object ) [compound]
       if (value is null)           return NullBossValue
       if (value instanceOf BossValue) return value as BossValue
       if (value instanceOf String) return BossValue( TYPE_STRING, 0, value )
-      return BossValue( TYPE_OBJECT, 0, value )
+      return BossValue( TYPE_OBJECT, value )
 
     method create( value:String )->BossValue
       if (value is null) return NullBossValue
-      return BossValue( TYPE_STRING, 0, value )
+      return BossValue( TYPE_STRING, value )
 
     method create( value:BossValue )->BossValue
       return value
+
+    method create( value:BossValue[] )->BossValue
+      return BossValue( TYPE_LIST, value )
 
       #{
     method load( file:File )->BossValue
@@ -125,7 +158,7 @@ class BossValue( type:Int32, value:Int64, object=null:Object ) [compound]
       }#
 
     method table->BossValue
-      return BossValue( TYPE_TABLE, 0, StringTable<<BossValue>> )
+      return BossValue( TYPE_TABLE, 0, StringTable<<BossValue>>() )
 
     method operator?( value:BossValue )->Logical
       if (value.type == TYPE_NULL or value.type == TYPE_UNDEFINED) return false
@@ -158,15 +191,6 @@ class BossValue( type:Int32, value:Int64, object=null:Object ) [compound]
         case TYPE_CUSTOM
           (object as CustomBossValue).add( value )
 
-      endWhich
-
-    method add( other:BossValue[] )
-      which (type)
-        case TYPE_LIST
-          (object as BossValue[]).add( value )
-
-        case TYPE_CUSTOM
-          (object as CustomBossValue).add( value )
       endWhich
 
     method add_all( other:BossValue )
@@ -286,10 +310,8 @@ class BossValue( type:Int32, value:Int64, object=null:Object ) [compound]
       endWhich
       return false
 
-      #{
     method contains( query:(Function(BossValue)->Logical) )->Logical
-      return first( query ) not instanceOf UndefinedBossValue
-      }#
+      return not first(query).is_undefined
 
     method count->Int32
       which (type)
@@ -352,35 +374,68 @@ class BossValue( type:Int32, value:Int64, object=null:Object ) [compound]
 
     method encode_indexed( id_table_builder:BossValueIDTableBuilder )->BossValue
       return this
+      }#
 
-    method ensure_list( key:String )->BossValueList
+    method ensure_list( key:String )->BossValue
       # When called on a BossValueTable, ensures that the table contains a list
       # with the given key, creating it if necessary, and returns that list.
       # When called on any other type of BossValue, a new BossValueList
       # will be returned but it won't be stored in a table.
-      return @[]
+      if (type == TYPE_TABLE)
+        local list = this[ key ]
+        if (list.is_list) return list
+        list = BossValue.list
+        this[ key ] = list
+        return list
+      else
+        return BossValue.list
+      endIf
 
-    method ensure_table( key:String )->BossValueTable
+    method ensure_table( key:String )->BossValue
       # When called on a BossValueTable, ensures that the table contains a table
       # with the given key, creating it if necessary, and returns that table.
       # When called on any other type of BossValue, a new BossValueTable
       # will be returned but it won't be stored in a table.
-      return @{}
-      }#
+      if (type == TYPE_TABLE)
+        local table = this[ key ]
+        if (table.is_list) return table
+        table = BossValue.table
+        this[ key ] = table
+        return table
+      else
+        return BossValue.table
+      endIf
 
     method first->BossValue
       if (count == 0) return UndefinedBossValue
 
       which (type)
-        case TYPE_LIST:  return (object as BossValue[]).first
-        case TYPE_TABLE: return (object as StringTable<<BossValue>>).first_entry.value
-        others:          return this[ 0 ]
+        case TYPE_LIST:   return (object as BossValue[]).first
+        case TYPE_TABLE:  return (object as StringTable<<BossValue>>).first_entry.value
+        case TYPE_CUSTOM: return (object as CustomBossValue).first
+        others:           return UndefinedBossValue
       endWhich
 
-      #{
     method first( query:(Function(BossValue)->Logical) )->BossValue
+      if (count == 0) return UndefinedBossValue
+
+      which (type)
+        case TYPE_LIST
+          forEach (value in (object as BossValue[]))
+            if (query(value)) return value
+          endForEach
+        case TYPE_TABLE
+          local cur = (object as StringTable<<BossValue>>).first_entry
+          while (cur)
+            if (query(cur.value)) return cur.value
+            cur = cur.next_entry
+          endWhile
+        case TYPE_CUSTOM
+          return (object as CustomBossValue).first( query )
+        others
+      endWhich
+
       return UndefinedBossValue
-    }#
 
     method get( index:Int32 )->BossValue
       which (type)
@@ -443,39 +498,38 @@ class BossValue( type:Int32, value:Int64, object=null:Object ) [compound]
 
       endWhich
 
+    method insert( value:Int32, before_index=0:Int32 ) [macro]
+      this.insert( BossValue(value), before_index )
+
+    method insert( value:Int64, before_index=0:Int32 ) [macro]
+      this.insert( BossValue(value), before_index )
+
+    method insert( value:Logical, before_index=0:Int32 ) [macro]
+      this.insert( BossValue(value), before_index )
+
+    method insert( value:Real64, before_index=0:Int32 ) [macro]
+      this.insert( BossValue(value), before_index )
+
+    method insert( value:Object, before_index=0:Int32 ) [macro]
+      this.insert( BossValue(value), before_index )
+
+    method insert( value:String, before_index=0:Int32 ) [macro]
+      this.insert( BossValue(value), before_index )
+
+    method insert( value:BossValue, before_index=0:Int32 )
+      which (type)
+        case TYPE_LIST:   (object as BossValue[]).insert( value, before_index )
+        case TYPE_CUSTOM: (object as CustomBossValue).insert( value, before_index )
+      endWhich
+
       #{
-    method insert( value:Int32, before_index=0:Int32 )->this [macro]
-      return this.insert( BossValue(value), before_index )
-
-    method insert( value:Int64, before_index=0:Int32 )->this [macro]
-      return this.insert( BossValue(value), before_index )
-
-    method insert( value:Logical, before_index=0:Int32 )->this [macro]
-      return this.insert( BossValue(value), before_index )
-
-    method insert( value:Real64, before_index=0:Int32 )->this [macro]
-      return this.insert( BossValue(value), before_index )
-
-    method insert( value:Object, before_index=0:Int32 )->this [macro]
-      return this.insert( BossValue(value), before_index )
-
-    method insert( value:String, before_index=0:Int32 )->this [macro]
-      return this.insert( BossValue(value), before_index )
-
-    method insert( value:BossValue, before_index=0:Int32 )->this
-      return this
-
-    method insert( other:BossValue[], before_index=0:Int32 )->this
-      return this
-
-    method insert_all( other:BossValue, before_index=0:Int32 )->this
-      if (other.count)
+    method insert_all( other:BossValue, before_index=0:Int32 )
+      if (other.is_collection)
         reserve( other.count )
         forEach (value in other.values step -1) insert( value, before_index )
       else
         insert( other, before_index )
       endIf
-      return this
       }#
 
     method is_complex->Logical
@@ -534,13 +588,43 @@ class BossValue( type:Int32, value:Int64, object=null:Object ) [compound]
       #{
     method keys->String[]
       return String[]
+      }#
 
     method last->BossValue
-      return this[ count - 1 ]
+      if (count == 0) return UndefinedBossValue
+
+      which (type)
+        case TYPE_LIST
+          return (object as BossValue[]).last
+        case TYPE_TABLE
+          return (object as StringTable<<BossValue>>).last_entry.value
+        others
+          return UndefinedBossValue
+      endWhich
 
     method last( query:(Function(BossValue)->Logical) )->BossValue
+      if (count == 0) return UndefinedBossValue
+
+      which (type)
+        case TYPE_LIST
+          forEach (value in (object as BossValue[]) step -1)
+            if (query(value)) return value
+          endForEach
+        case TYPE_TABLE
+          local cur = (object as StringTable<<BossValue>>).last_entry
+          while (cur)
+            if (query(cur.value)) return cur.value
+            cur = cur.previous_entry
+          endWhile
+        case TYPE_CUSTOM
+          return (object as CustomBossValue).last( query )
+        others
+      endWhich
+
       return UndefinedBossValue
 
+
+      #{
     method locate( value:BossValue )->BossValue
       return UndefinedBossValue
 
@@ -736,70 +820,100 @@ class BossValue( type:Int32, value:Int64, object=null:Object ) [compound]
 
     method save( file:File, &formatted, &omit_commas )->Logical
       return file.save( to_json(formatted,omit_commas) )
+      }#
 
-    method set( index:Int32, value:Int32 )->this [macro]
-      return this.set( index, BossValue(value) )
+    method set( index:Int32, value:Int32 ) [macro]
+      this.set( index, BossValue(value) )
 
-    method set( index:Int32, value:Int64 )->this [macro]
-      return this.set( index, BossValue(value) )
+    method set( index:Int32, value:Int64 ) [macro]
+      this.set( index, BossValue(value) )
 
-    method set( index:Int32, value:Logical )->this [macro]
-      return this.set( index, BossValue(value) )
+    method set( index:Int32, value:Logical ) [macro]
+      this.set( index, BossValue(value) )
 
-    method set( index:Int32, value:Real64 )->this [macro]
-      return this.set( index, BossValue(value) )
+    method set( index:Int32, value:Real64 ) [macro]
+      this.set( index, BossValue(value) )
 
-    method set( index:Int32, value:Object )->this [macro]
-      return this.set( index, BossValue(value) )
+    method set( index:Int32, value:Object ) [macro]
+      this.set( index, BossValue(value) )
 
-    method set( index:Int32, value:String )->this [macro]
-      return this.set( index, BossValue(value) )
+    method set( index:Int32, value:String ) [macro]
+      this.set( index, BossValue(value) )
 
-    method set( index:Int32, value:BossValue )->this [preferred]
-      return this
+    method set( index:Int32, value:BossValue ) [preferred]
+      if (index < 0) return
 
-    method set( key:String, value:Int32 )->this [macro]
-      return this.set( key, BossValue(value) )
+      which (type)
+        case TYPE_LIST
+          local list = (object as Value[])
+          while (index >= list.count) add( UndefinedBossValue )
+        case TYPE_TABLE
+          set( index->String, value )
+        case TYPE_CUSTOM
+          (object as CustomBossValue).set( index, value )
+      endWhich
 
-    method set( key:String, value:Int64 )->this [macro]
-      return this.set( key, BossValue(value) )
+    method set( key:String, value:Int32 ) [macro]
+      this.set( key, BossValue(value) )
 
-    method set( key:String, value:Logical )->this [macro]
-      return this.set( key, BossValue(value) )
+    method set( key:String, value:Int64 ) [macro]
+      this.set( key, BossValue(value) )
 
-    method set( key:String, value:Real64 )->this [macro]
-      return this.set( key, BossValue(value) )
+    method set( key:String, value:Logical ) [macro]
+      this.set( key, BossValue(value) )
 
-    method set( key:String, value:Object )->this [macro]
-      return this.set( key, BossValue(value) )
+    method set( key:String, value:Real64 ) [macro]
+      this.set( key, BossValue(value) )
 
-    method set( key:String, value:String )->this [macro]
-      return this.set( key, BossValue(value) )
+    method set( key:String, value:Object ) [macro]
+      this.set( key, BossValue(value) )
 
-    method set( key:BossValue, value:BossValue )->this [macro]
-      return this.set( key->String, value )
+    method set( key:String, value:String ) [macro]
+      this.set( key, BossValue(value) )
 
-    method set( key:String, value:BossValue )->this [preferred]
-      return this
+    method set( key:BossValue, value:BossValue ) [macro]
+      this.set( key->String, value )
 
+    method set( key:String, value:BossValue ) [preferred]
+      which (type)
+        case TYPE_LIST
+          set( key->Int32, value )
+        case TYPE_TABLE
+          (object as StringTable<<BossValue>>)[ key ] = value
+        case TYPE_CUSTOM
+          (object as CustomBossValue).set( key, value )
+      endWhich
+
+      #{
     method sort( compare_fn:(Function(a:BossValue,b:BossValue)->Logical) )->this
       return this
 
     method sorted( compare_fn:(Function(a:BossValue,b:BossValue)->Logical) )->BossValue
       return cloned
+      }#
 
     method to->Byte
-      return this->Int32->Byte
+      if (type == TYPE_REAL64)    return value.real_bits->Byte
+      if (type < LAST_VALUE_TYPE) return value->Byte
+      if (type == TYPE_CUSTOM)    return (object as CustomBossValue)->Byte
+      return 0
 
     method to->Character
-      return Character(0)
-
-    method to->Int64
+      if (type == TYPE_REAL64)    return value.real_bits->Character
+      if (type < LAST_VALUE_TYPE) return value->Character
+      if (type == TYPE_CUSTOM)    return (object as CustomBossValue)->Character
       return 0
 
     method to->Int32
-      return this->Int64->Int32
-      }#
+      if (type == TYPE_REAL64)    return value.real_bits->Int32
+      if (type < LAST_VALUE_TYPE) return value->Int32
+      if (type == TYPE_CUSTOM)    return (object as CustomBossValue)->Int32
+      return 0
+
+    method to->Int64
+      if (type == TYPE_REAL64)    return value.real_bits->Int64
+      if (type < LAST_VALUE_TYPE) return value
+      if (type == TYPE_CUSTOM)    return (object as CustomBossValue)->Int64
 
     method to->Logical
       if (type == TYPE_REAL64)    return value.real_bits?
