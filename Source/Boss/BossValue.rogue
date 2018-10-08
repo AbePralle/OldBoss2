@@ -53,7 +53,16 @@ class CustomBossValue
     method last( query:(Function(BossValue)->Logical) )->BossValue
       return UndefinedBossValue
 
-    method locate( value:BossValue )->BossValue
+    method locate( value:BossValue, starting_index=0:Int32 )->BossValue
+      return UndefinedBossValue
+
+    method locate( query:(Function(BossValue)->Logical), starting_index=0:Int32 )->BossValue
+      return UndefinedBossValue
+
+    method locate_last( value:BossValue, starting_index=null:Int32 )->BossValue
+      return UndefinedBossValue
+
+    method locate_last( query:(Function(BossValue)->Logical), starting_index:Int32? )->BossValue
       return UndefinedBossValue
 
     method operator==( other:CustomBossValue )->Logical
@@ -679,36 +688,113 @@ class BossValue( type:Int32, value:Int64, object:Object ) [compound]
 
       return UndefinedBossValue
 
-    method locate( value:BossValue )->BossValue
+    method locate( value:BossValue, starting_index=0:Int32 )->BossValue [preferred]
       which (type)
         case TYPE_LIST
-          forEach (v at index in (object as BossValue[]))
+          forEach (v at index in (object as BossValue[]) from starting_index)
             if (v == value) return index
           endForEach
 
         case TYPE_TABLE
           local cur = (object as StringTable<<BossValue>>).first_entry
+          while (cur and starting_index > 0)
+            --starting_index
+            cur = cur.next_entry
+          endWhile
+
           while (cur)
             if (cur.value == value) return cur.key
             cur = cur.next_entry
           endWhile
 
         case TYPE_CUSTOM
-          return (object as CustomBossValue).locate( value )
+          return (object as CustomBossValue).locate( value, starting_index )
       endWhich
 
       return UndefinedBossValue
 
-      #{
-    method locate( query:(Function(BossValue)->Logical) )->BossValue
+    method locate( query:(Function(BossValue)->Logical), starting_index=0:Int32 )->BossValue
+      which (type)
+        case TYPE_LIST
+          forEach (v at index in (object as BossValue[]) from starting_index)
+            if (query(v)) return index
+          endForEach
+
+        case TYPE_TABLE
+          local cur = (object as StringTable<<BossValue>>).first_entry
+          while (cur and starting_index > 0)
+            --starting_index
+            cur = cur.next_entry
+          endWhile
+
+          while (cur)
+            if (query(cur.value)) return cur.key
+            cur = cur.next_entry
+          endWhile
+
+        case TYPE_CUSTOM
+          return (object as CustomBossValue).locate( query, starting_index )
+      endWhich
+
       return UndefinedBossValue
 
-    method locate_last( value:BossValue )->BossValue
+    method locate_last( value:BossValue, starting_index=null:Int32? )->BossValue [preferred]
+      if (not starting_index.exists) starting_index = count - 1
+      if (starting_index.value >= count) return UndefinedBossValue
+
+      which (type)
+        case TYPE_LIST
+          forEach (v at index in (object as BossValue[]) from starting_index.value step -1)
+            if (v == value) return index
+          endForEach
+
+        case TYPE_TABLE
+          local cur = (object as StringTable<<BossValue>>).last_entry
+          local skip = (count-1) - starting_index.value
+          while (cur and skip > 0)
+            --starting_index.value
+            cur = cur.previous_entry
+          endWhile
+
+          while (cur)
+            if (cur.value == value) return cur.key
+            cur = cur.previous_entry
+          endWhile
+
+        case TYPE_CUSTOM
+          return (object as CustomBossValue).locate_last( value, starting_index.value )
+      endWhich
+
       return UndefinedBossValue
 
-    method locate_last( query:(Function(BossValue)->Logical) )->BossValue
+    method locate_last( query:(Function(BossValue)->Logical), starting_index=null:Int32? )->BossValue
+      if (not starting_index.exists) starting_index = count - 1
+      if (starting_index.value >= count) return UndefinedBossValue
+
+      which (type)
+        case TYPE_LIST
+          forEach (v at index in (object as BossValue[]) from starting_index.value step -1)
+            if (query(v)) return index
+          endForEach
+
+        case TYPE_TABLE
+          local cur = (object as StringTable<<BossValue>>).last_entry
+          local skip = (count-1) - starting_index.value
+          while (cur and skip > 0)
+            --starting_index.value
+            cur = cur.previous_entry
+          endWhile
+
+          while (cur)
+            if (query(cur.value)) return cur.key
+            cur = cur.previous_entry
+          endWhile
+
+        case TYPE_CUSTOM
+          return (object as CustomBossValue).locate_last( query, starting_index.value )
+      endWhich
+
       return UndefinedBossValue
-      }#
 
     method operator==( other:BossValue )->Logical
       if ((is_number or type == TYPE_CHARACTER) and (other.is_number or other.type == TYPE_CHARACTER))
