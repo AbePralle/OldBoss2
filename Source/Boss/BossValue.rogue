@@ -44,14 +44,22 @@ class CustomBossValue
     method is_collection->Logical
       return false
 
+    method keys->String[]
+      return String[]
+
     method last->BossValue
       return UndefinedBossValue
 
     method last( query:(Function(BossValue)->Logical) )->BossValue
       return UndefinedBossValue
 
+    method locate( value:BossValue )->BossValue
+      return UndefinedBossValue
+
     method operator==( other:CustomBossValue )->Logical
       return this is other
+
+    method reserve( additional_elements:Int32 )
 
     method set( index:Int32, value:BossValue )
 
@@ -79,7 +87,7 @@ class CustomBossValue
       return type_name
 endClass
 
-class BossValue( type:Int32, value:Int64, object=null:Object ) [compound]
+class BossValue( type:Int32, value:Int64, object:Object ) [compound]
   ENUMERATE
     FORMATTED = 1
     OMIT_COMMAS = 2
@@ -103,6 +111,9 @@ class BossValue( type:Int32, value:Int64, object=null:Object ) [compound]
   GLOBAL METHODS
     method create->BossValue
       return UndefinedBossValue
+
+    method create( type:Int32, value:Int64 )->BossValue [macro]
+      return BossValue( type, value, null )
 
     method create( type:Int32, object:Object )->BossValue [macro]
       return BossValue( type, 0, object )
@@ -144,6 +155,38 @@ class BossValue( type:Int32, value:Int64, object=null:Object ) [compound]
     method create( value:BossValue[] )->BossValue
       return BossValue( TYPE_LIST, value )
 
+    method create( value:Byte[] )->BossValue
+      local result = list
+      result.reserve( value.count )
+      result.add( forEach in value )
+      return result
+
+    method create( value:Int32[] )->BossValue
+      local result = list
+      result.reserve( value.count )
+      result.add( forEach in value )
+      return result
+
+    method create( value:Int64[] )->BossValue
+      local result = list
+      result.reserve( value.count )
+      result.add( forEach in value )
+      return result
+
+    method create( value:Real64[] )->BossValue
+      local result = list
+      result.reserve( value.count )
+      result.add( forEach in value )
+      return result
+
+    method create( value:String[] )->BossValue
+      local result = list
+      result.reserve( value.count )
+      forEach (v in value)
+        result.add( v )
+      endForEach
+      return result
+
       #{
     method load( file:File )->BossValue
       return JSON.load( file )
@@ -165,6 +208,12 @@ class BossValue( type:Int32, value:Int64, object=null:Object ) [compound]
       return value->Logical
 
   METHODS
+    method add( value:Byte ) [macro]
+      this.add( BossValue(value) )
+
+    method add( value:Character ) [macro]
+      this.add( BossValue(value) )
+
     method add( value:Int32 ) [macro]
       this.add( BossValue(value) )
 
@@ -180,14 +229,13 @@ class BossValue( type:Int32, value:Int64, object=null:Object ) [compound]
     method add( value:Object ) [macro]
       this.add( BossValue(value) )
 
-    method add( value:String ) [macro]
+    method add( value:String )
       this.add( BossValue(value) )
 
     method add( value:BossValue )
       which (type)
         case TYPE_LIST
           (object as BossValue[]).add( value )
-
         case TYPE_CUSTOM
           (object as CustomBossValue).add( value )
 
@@ -522,15 +570,21 @@ class BossValue( type:Int32, value:Int64, object=null:Object ) [compound]
         case TYPE_CUSTOM: (object as CustomBossValue).insert( value, before_index )
       endWhich
 
-      #{
     method insert_all( other:BossValue, before_index=0:Int32 )
       if (other.is_collection)
-        reserve( other.count )
-        forEach (value in other.values step -1) insert( value, before_index )
+        which (this.type)
+          case TYPE_LIST
+            local list = (object as BossValue[])
+            list.shift( before_index, &delta=other.count, &fill=UndefinedBossValue )
+            forEach (value at i in other) list[ before_index+i ] = value
+          case TYPE_TABLE
+            add_all( other )
+          case TYPE_CUSTOM
+            (object as CustomBossValue).insert_all( other, before_index )
+        endWhich
       else
         insert( other, before_index )
       endIf
-      }#
 
     method is_complex->Logical
       if (not is_collection or count == 0) return false
@@ -585,10 +639,12 @@ class BossValue( type:Int32, value:Int64, object=null:Object ) [compound]
     method is_undefined->Logical [macro]
       return this.type == BossValue.TYPE_UNDEFINED
 
-      #{
     method keys->String[]
-      return String[]
-      }#
+      if (type == TYPE_TABLE)
+        return (object as StringTable<<BossValue>>).keys
+      else
+        return String[]
+      endIf
 
     method last->BossValue
       if (count == 0) return UndefinedBossValue
@@ -623,11 +679,27 @@ class BossValue( type:Int32, value:Int64, object=null:Object ) [compound]
 
       return UndefinedBossValue
 
-
-      #{
     method locate( value:BossValue )->BossValue
+      which (type)
+        case TYPE_LIST
+          forEach (v at index in (object as BossValue[]))
+            if (v == value) return index
+          endForEach
+
+        case TYPE_TABLE
+          local cur = (object as StringTable<<BossValue>>).first_entry
+          while (cur)
+            if (cur.value == value) return cur.key
+            cur = cur.next_entry
+          endWhile
+
+        case TYPE_CUSTOM
+          return (object as CustomBossValue).locate( value )
+      endWhich
+
       return UndefinedBossValue
 
+      #{
     method locate( query:(Function(BossValue)->Logical) )->BossValue
       return UndefinedBossValue
 
@@ -796,11 +868,15 @@ class BossValue( type:Int32, value:Int64, object=null:Object ) [compound]
 
     method remove_last->BossValue
       return remove( last )
+      }#
 
-    method reserve( additional_elements:Int32 )->this
-      noAction
-      return this
+    method reserve( additional_elements:Int32 )
+      which (type)
+        case TYPE_LIST:   (object as BossValue[]).reserve( additional_elements )
+        case TYPE_CUSTOM: (object as CustomBossValue).reserve( additional_elements )
+      endWhich
 
+      #{
     method rest( result_list=null:BossValue )->BossValue
       # Returns the "rest" of this collection: a `BossValueList` containing all of the items
       # in this collection after the first item.  The `result_list` parameter is
