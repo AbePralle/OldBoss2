@@ -13,6 +13,9 @@ class CustomBossValue
       # Returning 'null' will result in BossValue.cloned() returning UndefinedBossValue
       return this
 
+    method compare( left:BossValue, right:BossValue )->Int32
+      return right.object_id - left.object_id
+
     method contains( value:BossValue )->Logical
       return false
 
@@ -65,8 +68,32 @@ class CustomBossValue
     method locate_last( query:(Function(BossValue)->Logical), starting_index:Int32? )->BossValue
       return UndefinedBossValue
 
-    method operator==( other:CustomBossValue )->Logical
-      return this is other
+    method operator-()->BossValue
+      return UndefinedBossValue
+
+    method operator+( other:CustomBossValue )->BossValue
+      return UndefinedBossValue
+
+    method operator-( other:CustomBossValue )->BossValue
+      return UndefinedBossValue
+
+    method operator*( other:CustomBossValue )->BossValue
+      return UndefinedBossValue
+
+    method operator/( other:CustomBossValue )->BossValue
+      return UndefinedBossValue
+
+    method operator%( other:CustomBossValue )->BossValue
+      return UndefinedBossValue
+
+    method operator^( other:CustomBossValue )->BossValue
+      return UndefinedBossValue
+
+    method remove( value:BossValue )->BossValue
+      return UndefinedBossValue
+
+    method remove( query:(Function(BossValue)->Logical) )->BossValue
+      return UndefinedBossValue
 
     method reserve( additional_elements:Int32 )
 
@@ -88,6 +115,9 @@ class CustomBossValue
 
     method to->Logical
       return false
+
+    method to->Object
+      return null
 
     method to->Real64
       return 0.0
@@ -302,6 +332,9 @@ class BossValue( type:Int32, value:Int64, object:Object ) [compound]
 
     method cloned->BossValue
       which (type)
+        case TYPE_STRING, TYPE_OBJECT
+          return BossValue( type, 0, object )
+
         case TYPE_LIST
           return BossValue( TYPE_LIST, 0, (object as BossValue[]).cloned )
 
@@ -312,6 +345,9 @@ class BossValue( type:Int32, value:Int64, object:Object ) [compound]
           local clone = (object as CustomBossValue).cloned
           if (clone) return BossValue( TYPE_CUSTOM, 0, clone )
           else       return UndefinedBossValue
+
+        others
+          return UndefinedBossValue
       endWhich
 
     method apply( fn:Function(BossValue)->BossValue )->BossValue
@@ -631,19 +667,19 @@ class BossValue( type:Int32, value:Int64, object:Object ) [compound]
       return this.type != BossValue.TYPE_NULL
 
     method is_number->Logical
-      return select(type){ TYPE_BYTE,TYPE_REAL64,TYPE_INT32,TYPE_INT64:true || false }
+      return select(type){ TYPE_BYTE,TYPE_CHARACTER,TYPE_REAL64,TYPE_INT32,TYPE_INT64:true || false }
 
     method is_object->Logical [macro]
-      return this.type == BossValue.TYPE_UNDEFINED
+      return this.type == BossValue.TYPE_OBJECT
 
     method is_real64->Logical [macro]
-      return this.type == BossValue.TYPE_UNDEFINED
+      return this.type == BossValue.TYPE_REAL64
 
     method is_string->Logical [macro]
-      return this.type == BossValue.TYPE_UNDEFINED
+      return this.type == BossValue.TYPE_STRING
 
     method is_table->Logical [macro]
-      return this.type == BossValue.TYPE_UNDEFINED
+      return this.type == BossValue.TYPE_TABLE
 
     method is_undefined->Logical [macro]
       return this.type == BossValue.TYPE_UNDEFINED
@@ -796,50 +832,51 @@ class BossValue( type:Int32, value:Int64, object:Object ) [compound]
 
       return UndefinedBossValue
 
-    method operator==( other:BossValue )->Logical
-      if ((is_number or type == TYPE_CHARACTER) and (other.is_number or other.type == TYPE_CHARACTER))
-        if (is_real64 or other.is_real64)
-          return this->Real64 == other->Real64
-        else
-          return this.value == other.value
-        endIf
-      elseIf (type != other.type)
-        return false
-      else
-        if (type < LAST_VALUE_TYPE) return value == other.value
-        if (object is other.object) return true
+    method object_id->Int64
+      if (object) return object.object_id
+      return value
 
-        which (type)
-          case TYPE_OBJECT
-            return object == other.object
-          case TYPE_STRING
-            return (object as String) == (other.object as String)
-          case TYPE_LIST
-            return (object as BossValue[]) == (other.object as BossValue[])
-          case TYPE_TABLE
-            local other_table = other.object as StringTable<<BossValue>>
-            local cur = (object as StringTable<<BossValue>>).first_entry
-            while (cur)
-              local other_entry = other_table.find( cur.key )
-              if (not other_entry) return false
-              if (other_entry.value != cur.value) return false
-              cur = cur.next_entry
-            endWhile
-            return true
-          case TYPE_CUSTOM
-            return (object as CustomBossValue) == (other.object as CustomBossValue)
-          others
-            return false
-        endWhich
+    method operator==( other:BossValue )->Logical
+      if (type <= LAST_VALUE_TYPE and other.type <= LAST_VALUE_TYPE)
+        if (type <= TYPE_NULL and other.type <= TYPE_NULL)
+          return true
+        else
+          if (is_real64 or other.is_real64)
+            return this->Real64 == other->Real64
+          else
+            return this.value == other.value
+          endIf
+        endIf
+      else
+        if (type == TYPE_CUSTOM)
+          return 0 == (object as CustomBossValue).compare( this, other )
+        elseIf (other.type == TYPE_CUSTOM)
+          return 0 == (other.object as CustomBossValue).compare( this, other )
+        elseIf (type != other.type)
+          return false
+        else
+          if (object is other.object) return true
+
+          which (type)
+            case TYPE_OBJECT
+              return object == other.object
+            case TYPE_STRING
+              return (object as String) == (other.object as String)
+            case TYPE_LIST
+              return (object as BossValue[]) == (other.object as BossValue[])
+            case TYPE_TABLE
+              return (object as StringTable<<BossValue>>) == (other.object as StringTable<<BossValue>>)
+            others
+              return false
+          endWhich
+        endIf
       endIf
 
-
-      #{
     method operator==( other:Byte )->Logical
       return this == BossValue( other )
 
     method operator==( other:Character )->Logical
-      return this == BossValue( ""+other )
+      return this == BossValue( other )
 
     method operator==( other:Int32 )->Logical
       return this == BossValue( other )
@@ -853,9 +890,6 @@ class BossValue( type:Int32, value:Int64, object:Object ) [compound]
     method operator==( other:Real64 )->Logical
       return this == BossValue( other )
 
-    method operator==( other:Real32 )->Logical
-      return this == BossValue( other )
-
     method operator==( other:Object )->Logical
       return this == BossValue( other )
 
@@ -863,7 +897,36 @@ class BossValue( type:Int32, value:Int64, object:Object ) [compound]
       return this == BossValue( other )
 
     method operator<( other:BossValue )->Logical
-      return object_id < other.object_id
+      if (type <= LAST_VALUE_TYPE and other.type <= LAST_VALUE_TYPE)
+        if (type <= TYPE_NULL and other.type <= TYPE_NULL)
+          return false
+        else
+          if (is_real64 or other.is_real64)
+            return this->Real64 < other->Real64
+          else
+            return this.value < other.value
+          endIf
+        endIf
+      else
+        if (type == TYPE_CUSTOM)
+          return (object as CustomBossValue).compare( this, other ) < 0
+        elseIf (other.type == TYPE_CUSTOM)
+          return (other.object as CustomBossValue).compare( this, other ) < 0
+        elseIf (type != other.type)
+          return false
+        else
+          if (object is other.object) return false
+
+          which (type)
+            case TYPE_OBJECT
+              return object_id < other.object_id
+            case TYPE_STRING
+              return (object as String) < (other.object as String)
+            others
+              return false
+          endWhich
+        endIf
+      endIf
 
     method operator<( other:Byte )->Logical
       return this < BossValue( other )
@@ -893,59 +956,187 @@ class BossValue( type:Int32, value:Int64, object:Object ) [compound]
       return this < BossValue( other )
 
     method operator-()->BossValue
-      return BossValue( 0 )
+      which (type)
+        case TYPE_BYTE, TYPE_CHARACTER, TYPE_INT32, TYPE_INT64
+                          return -value
+        case TYPE_REAL64: return -this->Real64
+        case TYPE_CUSTOM: return -(object as CustomBossValue)
+        others:           return UndefinedBossValue
+      endWhich
 
     method operator+( other:BossValue )->BossValue
-      return BossValue( 0 )
+      if (type == TYPE_CUSTOM and other.type == TYPE_CUSTOM)
+        return (object as CustomBossValue) + (other.object as CustomBossValue)
+      endIf
+
+      if (type == TYPE_STRING or other.type == TYPE_STRING)
+        return BossValue( this->String + other->String )
+      endIf
+
+      which (type.or_larger(other.type))
+        case TYPE_REAL64:    return BossValue( this->Real64 + other->Real64 )
+        case TYPE_INT64:     return BossValue( this->Int64 + other->Int64 )
+        case TYPE_INT32:     return BossValue( this->Int32 + other->Int32 )
+        case TYPE_CHARACTER: return BossValue( this->Int32 + other->Int32 )
+        case TYPE_BYTE:      return BossValue( this->Int32 + other->Int32 )
+        case TYPE_LOGICAL:   return BossValue( this->Logical or other->Logical )
+        others:              return UndefinedBossValue
+      endWhich
 
     method operator-( other:BossValue )->BossValue
-      return BossValue( 0 )
+      if (type == TYPE_CUSTOM and other.type == TYPE_CUSTOM)
+        return (object as CustomBossValue) - (other.object as CustomBossValue)
+      endIf
+
+      which (type.or_larger(other.type))
+        case TYPE_REAL64:    return BossValue( this->Real64 - other->Real64 )
+        case TYPE_INT64:     return BossValue( this->Int64  - other->Int64 )
+        case TYPE_INT32:     return BossValue( this->Int32  - other->Int32 )
+        case TYPE_CHARACTER: return BossValue( this->Int32  - other->Int32 )
+        case TYPE_BYTE:      return BossValue( this->Int32  - other->Int32 )
+        others:              return UndefinedBossValue
+      endWhich
 
     method operator*( other:BossValue )->BossValue
-      return BossValue( 0 )
+      if (type == TYPE_CUSTOM and other.type == TYPE_CUSTOM)
+        return (object as CustomBossValue) * (other.object as CustomBossValue)
+      endIf
+
+      if (type == TYPE_STRING or other.type == TYPE_STRING)
+        if (this.is_number or other.is_number)
+          if (type == TYPE_STRING) return BossValue( this->String * other->Int32 )
+          else                     return BossValue( other->String * this->Int32 )
+        endIf
+      endIf
+
+      which (type.or_larger(other.type))
+        case TYPE_REAL64:    return BossValue( this->Real64 * other->Real64 )
+        case TYPE_INT64:     return BossValue( this->Int64  * other->Int64 )
+        case TYPE_INT32:     return BossValue( this->Int32  * other->Int32 )
+        case TYPE_CHARACTER: return BossValue( this->Int32  * other->Int32 )
+        case TYPE_BYTE:      return BossValue( this->Int32  * other->Int32 )
+        case TYPE_LOGICAL:   return BossValue( this->Logical and other->Logical )
+        others:              return UndefinedBossValue
+      endWhich
 
     method operator/( other:BossValue )->BossValue
-      return BossValue( 0 )
+      if (type == TYPE_CUSTOM and other.type == TYPE_CUSTOM)
+        return (object as CustomBossValue) / (other.object as CustomBossValue)
+      endIf
+
+      which (type.or_larger(other.type))
+        case TYPE_REAL64:    return BossValue( this->Real64 / other->Real64 )
+        case TYPE_INT64:     return BossValue( this->Int64  / other->Int64 )
+        case TYPE_INT32:     return BossValue( this->Int32  / other->Int32 )
+        case TYPE_CHARACTER: return BossValue( this->Int32  / other->Int32 )
+        case TYPE_BYTE:      return BossValue( this->Int32  / other->Int32 )
+        others:              return UndefinedBossValue
+      endWhich
 
     method operator%( other:BossValue )->BossValue
-      return BossValue( 0 )
+      if (type == TYPE_CUSTOM and other.type == TYPE_CUSTOM)
+        return (object as CustomBossValue) % (other.object as CustomBossValue)
+      endIf
+
+      which (type.or_larger(other.type))
+        case TYPE_REAL64:    return BossValue( this->Real64 % other->Real64 )
+        case TYPE_INT64:     return BossValue( this->Int64  % other->Int64 )
+        case TYPE_INT32:     return BossValue( this->Int32  % other->Int32 )
+        case TYPE_CHARACTER: return BossValue( this->Int32  % other->Int32 )
+        case TYPE_BYTE:      return BossValue( this->Int32  % other->Int32 )
+        others:              return UndefinedBossValue
+      endWhich
 
     method operator^( other:BossValue )->BossValue
-      return BossValue( 0 )
+      if (type == TYPE_CUSTOM and other.type == TYPE_CUSTOM)
+        return (object as CustomBossValue) ^ (other.object as CustomBossValue)
+      endIf
+
+      which (type.or_larger(other.type))
+        case TYPE_REAL64:    return BossValue( this->Real64 ^ other->Real64 )
+        case TYPE_INT64:     return BossValue( this->Int64  ^ other->Int64 )
+        case TYPE_INT32:     return BossValue( this->Int32  ^ other->Int32 )
+        case TYPE_CHARACTER: return BossValue( this->Int32  ^ other->Int32 )
+        case TYPE_BYTE:      return BossValue( this->Int32  ^ other->Int32 )
+        others:              return UndefinedBossValue
+      endWhich
 
     method operator+( other:Real64 )->BossValue
-      return BossValue( 0 )
+      return this + BossValue(other)
 
     method operator-( other:Real64 )->BossValue
-      return BossValue( 0 )
+      return this - BossValue(other)
 
     method operator*( other:Real64 )->BossValue
-      return BossValue( 0 )
+      return this * BossValue(other)
 
     method operator/( other:Real64 )->BossValue
-      return BossValue( 0 )
+      return this / BossValue(other)
 
     method operator%( other:Real64 )->BossValue
-      return BossValue( 0 )
+      return this % BossValue(other)
 
     method operator^( other:Real64 )->BossValue
-      return BossValue( 0 )
+      return this ^ BossValue(other)
 
     method operator+( other:String )->BossValue
-      return BossValue( 0 )
+      return this + BossValue(other)
 
     method operator*( other:String )->BossValue
-      return BossValue( 0 )
+      return this * BossValue(other)
 
     method remove( value:BossValue )->BossValue
-      return value
+      which (type)
+        case TYPE_LIST
+          (object as BossValue[]).remove( value )
+          return value
+
+        case TYPE_TABLE
+          local result = (object as StringTable<<BossValue>>).remove( value->String )
+          if (result) return result
+          else        return UndefinedBossValue
+
+        case TYPE_CUSTOM
+          return (object as CustomBossValue).remove( value )
+
+        others
+          return UndefinedBossValue
+      endWhich
 
     method remove( key:String )->BossValue
       return remove( BossValue(key) )
 
     method remove( query:(Function(BossValue)->Logical) )->BossValue
-      return UndefinedBossValue
+      which (type)
+        case TYPE_LIST
+          local result = BossValue.list
+          forEach (value in rewriter=(object as BossValue[]).rewriter)
+            if (query(value)) result.add( value )
+            else              rewriter.write( value )
+          endForEach
+          return result
 
+        case TYPE_TABLE
+          local result = BossValue.list
+          local table = (object as StringTable<<BossValue>>)
+          local cur = table.first_entry
+          while (cur)
+            local next_entry = cur.next_entry
+            if (query(cur.value))
+              result.add( cur.value )
+              table.remove( cur )
+            endIf
+            cur = next_entry
+          endWhile
+
+        case TYPE_CUSTOM
+          return (object as CustomBossValue).remove( query )
+
+        others
+          return UndefinedBossValue
+      endWhich
+
+      #{
     method remove_at( index:Int32 )->BossValue
       return remove( this[index] )
 
@@ -962,8 +1153,7 @@ class BossValue( type:Int32, value:Int64, object:Object ) [compound]
         case TYPE_CUSTOM: (object as CustomBossValue).reserve( additional_elements )
       endWhich
 
-      #{
-    method rest( result_list=null:BossValue )->BossValue
+    method rest( result_list=BossValue.list:BossValue )->BossValue
       # Returns the "rest" of this collection: a `BossValueList` containing all of the items
       # in this collection after the first item.  The `result_list` parameter is
       # used if it's specified (a `BossValueList` is expected); otherwise a new `BossValueList`
@@ -971,15 +1161,17 @@ class BossValue( type:Int32, value:Int64, object:Object ) [compound]
       #
       # If this `BossValue` is not a collection or if it is empty then an empty list is
       # returned.
-      if (not result_list) result_list = @[]
+      if (type != TYPE_LIST) return result_list
+
       result_list.reserve( (count-1).clamped_low(0) )
 
-      forEach (index of this)
-        if (index > 0) result_list.add( this[index] )
+      forEach (value in (object as BossValue[]) from 1)
+        result_list.add( value )
       endForEach
 
       return result_list
 
+      #{
     method save( file:File, &formatted, &omit_commas )->Logical
       return file.save( to_json(formatted,omit_commas) )
       }#
@@ -1046,13 +1238,16 @@ class BossValue( type:Int32, value:Int64, object:Object ) [compound]
           (object as CustomBossValue).set( key, value )
       endWhich
 
-      #{
-    method sort( compare_fn:(Function(a:BossValue,b:BossValue)->Logical) )->this
-      return this
+    method sort( compare_fn:(Function(a:BossValue,b:BossValue)->Logical) )
+      which (type)
+        case TYPE_LIST
+          (object as BossValue[]).sort( compare_fn )
+        case TYPE_TABLE
+          (object as StringTable<<BossValue>>).sort( function(a,b) with(compare_fn) => compare_fn(a.value,b.value) )
+      endWhich
 
     method sorted( compare_fn:(Function(a:BossValue,b:BossValue)->Logical) )->BossValue
-      return cloned
-      }#
+      return this.cloned.[ sort(compare_fn) ]
 
     method to->Byte
       if (type == TYPE_REAL64)    return value.real_bits->Byte
@@ -1076,6 +1271,7 @@ class BossValue( type:Int32, value:Int64, object:Object ) [compound]
       if (type == TYPE_REAL64)    return value.real_bits->Int64
       if (type < LAST_VALUE_TYPE) return value
       if (type == TYPE_CUSTOM)    return (object as CustomBossValue)->Int64
+      return 0
 
     method to->Logical
       if (type == TYPE_REAL64)    return value.real_bits?
@@ -1086,19 +1282,26 @@ class BossValue( type:Int32, value:Int64, object:Object ) [compound]
           return true
       endWhich
 
+    method to->Real32
+      return this->Real64->Real32
+
     method to->Real64
       if (type == TYPE_REAL64)    return value.real_bits
       if (type < LAST_VALUE_TYPE) return value->Real64
       if (type == TYPE_CUSTOM)    return (object as CustomBossValue)->Real64
       return 0.0
 
-      #{
-    method to->Real32
-      return this->Real64->Real32
-
     method to->Object
-      return null
-      }#
+      which (type)
+        case TYPE_OBJECT, TYPE_STRING
+          return object
+
+        case TYPE_CUSTOM
+          return (object as CustomBossValue)->Object
+
+        others
+          return null
+      endWhich
 
     method to->String
       which (type)
