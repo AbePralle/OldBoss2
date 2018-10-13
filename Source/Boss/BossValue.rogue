@@ -95,6 +95,9 @@ class CustomBossValue
     method remove( query:(Function(BossValue)->Logical) )->BossValue
       return UndefinedBossValue
 
+    method remove_at( index:Int32 )->BossValue
+      return UndefinedBossValue
+
     method reserve( additional_elements:Int32 )
 
     method set( index:Int32, value:BossValue )
@@ -124,6 +127,12 @@ class CustomBossValue
 
     method to->String
       return type_name
+
+    method to_json( buffer:StringBuilder, flags=0:Int32 )->StringBuilder
+      return buffer.print( '"undefined"' )
+
+    method values->BossValue
+      return UndefinedBossValue
 endClass
 
 class BossValue( type:Int32, value:Int64, object:Object ) [compound]
@@ -226,18 +235,14 @@ class BossValue( type:Int32, value:Int64, object:Object ) [compound]
       endForEach
       return result
 
-      #{
     method load( file:File )->BossValue
-      return JSON.load( file )
-      }#
+      return BossJSON.load( file )
 
     method list->BossValue
       return BossValue( TYPE_LIST, 0, BossValue[] )
 
-      #{
     method parse( json:String )->BossValue
-      return JSON.parse( json )
-      }#
+      return BossJSON.parse( json )
 
     method table->BossValue
       return BossValue( TYPE_TABLE, 0, StringTable<<BossValue>>() )
@@ -498,6 +503,9 @@ class BossValue( type:Int32, value:Int64, object:Object ) [compound]
       else
         return BossValue.table
       endIf
+
+    method exists->Logical [macro]
+      return not (this.type == BossValue.TYPE_UNDEFINED or this.type == BossValue.TYPE_NULL)
 
     method first->BossValue
       if (count == 0) return UndefinedBossValue
@@ -1025,12 +1033,10 @@ class BossValue( type:Int32, value:Int64, object:Object ) [compound]
       endIf
 
       which (type.or_larger(other.type))
-        case TYPE_REAL64:    return BossValue( this->Real64 / other->Real64 )
-        case TYPE_INT64:     return BossValue( this->Int64  / other->Int64 )
-        case TYPE_INT32:     return BossValue( this->Int32  / other->Int32 )
-        case TYPE_CHARACTER: return BossValue( this->Int32  / other->Int32 )
-        case TYPE_BYTE:      return BossValue( this->Int32  / other->Int32 )
-        others:              return UndefinedBossValue
+        case TYPE_REAL64, TYPE_INT64, TYPE_INT32, TYPE_CHARACTER, TYPE_BYTE:
+          return BossValue( this->Real64 / other->Real64 )
+        others
+          return UndefinedBossValue
       endWhich
 
     method operator%( other:BossValue )->BossValue
@@ -1136,16 +1142,43 @@ class BossValue( type:Int32, value:Int64, object:Object ) [compound]
           return UndefinedBossValue
       endWhich
 
-      #{
     method remove_at( index:Int32 )->BossValue
-      return remove( this[index] )
+      if (index < 0 or index >= count) return UndefinedBossValue
+      which (type)
+        case TYPE_LIST
+          return (object as BossValue[]).remove_at( index )
+
+        case TYPE_TABLE
+          local table = (object as StringTable<<BossValue>>)
+          local cur = table.first_entry
+          loop (index-1) cur = cur.next_entry
+          table.remove( cur )
+          return cur.value
+
+        case TYPE_CUSTOM
+          return (object as CustomBossValue).remove_at( index )
+
+        others
+          return UndefinedBossValue
+      endWhich
 
     method remove_first->BossValue
-      return remove( first )
+      return remove_at( 0 )
 
     method remove_last->BossValue
-      return remove( last )
-      }#
+      which (type)
+        case TYPE_LIST
+          return (object as BossValue[]).remove_last
+
+        case TYPE_TABLE
+          local table = (object as StringTable<<BossValue>>)
+          local cur = table.last_entry
+          table.remove( cur )
+          return cur.value
+
+        others
+          return remove_at( count-1 )
+      endWhich
 
     method reserve( additional_elements:Int32 )
       which (type)
@@ -1171,10 +1204,8 @@ class BossValue( type:Int32, value:Int64, object:Object ) [compound]
 
       return result_list
 
-      #{
     method save( file:File, &formatted, &omit_commas )->Logical
       return file.save( to_json(formatted,omit_commas) )
-      }#
 
     method set( index:Int32, value:Int32 ) [macro]
       this.set( index, BossValue(value) )
@@ -1321,21 +1352,11 @@ class BossValue( type:Int32, value:Int64, object:Object ) [compound]
         others:              throw UnsupportedOperationError()
       endWhich
 
-      #{
     method to->BossValue
       return this
 
-    method to->BossValueList
-      return @[ this ]
-
-    method to->BossValueTable
-      return @{}
-
     method to<<$AsType>>()->$AsType [macro]
       return (this->Object as $AsType)
-
-    method to_json( flags:Int32 )->String
-      return to_json( StringBuilder(), flags )->String
 
     method to_json( &formatted, &omit_commas )->String
       return to_json( StringBuilder(), formatted, omit_commas )->String
@@ -1347,567 +1368,130 @@ class BossValue( type:Int32, value:Int64, object:Object ) [compound]
       return to_json( buffer, flags )
 
     method to_json( buffer:StringBuilder, flags=0:Int32 )->StringBuilder
-      return buffer
+      which (type)
+        case TYPE_NULL
+          return buffer.print( "null" )
+        case TYPE_LOGICAL
+          return buffer.print( value? )
+        case TYPE_CHARACTER
+          return buffer.print( value->Character )
+        case TYPE_BYTE, TYPE_INT32, TYPE_INT64
+          return buffer.print( value )
+        case TYPE_REAL64
+          local real = this->Real64
+          if (real.fractional_part) buffer.print( real )
+          else                      buffer.print( real, 0 )  # omit the ".0"
+          return buffer
+        case TYPE_OBJECT, TYPE_STRING
+          return to_json( this->String, buffer, flags )
+        case TYPE_LIST
+          local pretty_print = ((flags & FORMATTED) and (is_complex or (flags & OMIT_COMMAS)))
 
-    method values( list=null:BossValue )->BossValue
-      if (list)
+          buffer.print( '[' )
+
+          if (pretty_print)
+            buffer.println
+            buffer.indent += 2
+          endIf
+
+          local first = true
+          forEach (value in (object as BossValue[]))
+            if (first)
+              first = false
+            else
+              if (not (flags & OMIT_COMMAS)) buffer.print( ',' )
+              if (pretty_print) buffer.println
+            endIf
+
+            if (value.exists) value.to_json( buffer, flags )
+            else              buffer.print( "null" )
+          endForEach
+
+          if (pretty_print)
+            buffer.println
+            buffer.indent -= 2
+          endIf
+
+          buffer.print( ']' )
+          return buffer
+        case TYPE_TABLE
+          local pretty_print = ((flags & FORMATTED) and (is_complex or (flags & OMIT_COMMAS)))
+
+          buffer.print( '{' )
+
+          if (pretty_print)
+            buffer.println
+            buffer.indent += 2
+          endIf
+
+          local first = true
+          local cur = (object as StringTable<<BossValue>>).first_entry
+          while (cur)
+            if (first)
+              first = false
+            else
+              if (not (flags & OMIT_COMMAS)) buffer.print( ',' )
+              if (pretty_print) buffer.println
+            endIf
+
+            to_json( cur.key, buffer, flags )
+            buffer.print( ':' )
+
+            local indent = false
+            if (pretty_print and (cur.value.is_complex or (flags & OMIT_COMMAS)))
+              buffer.println
+              indent = not cur.value.is_collection
+              if (indent) buffer.indent += 2
+            endIf
+
+            if (cur.value.exists) cur.value.to_json( buffer, flags )
+            else                  buffer.print( "null" )
+
+            if (indent) buffer.indent -= 2
+
+            cur = cur.next_entry
+          endWhile
+
+          if (pretty_print) buffer.println; buffer.indent -= 2
+
+          buffer.print( '}' )
+          return buffer
+        case TYPE_CUSTOM
+          return (object as CustomBossValue).to_json( buffer, flags )
+        others
+          return buffer.print( '"undefined"' )
+      endWhich
+
+    method values( list=UndefinedBossValue:BossValue )->BossValue
+      if (list.is_list)
         list.add_all( this )
         return list
       else
-        return this
+        which (type)
+          case TYPE_LIST
+            return this
+
+          case TYPE_TABLE
+            local result = BossValue.list.[ reserve(count) ]
+            local cur = (object as StringTable<<BossValue>>).first_entry
+            while (cur)
+              result.add( cur.value )
+              cur = cur.next_entry
+            endWhile
+            return result
+
+          case TYPE_CUSTOM
+            return (object as CustomBossValue).values
+
+          others
+            return UndefinedBossValue
+        endWhich
       endIf
 
 $if defined(SCRIPT_HELPERS)
     method _get_element( index:Int32 )->BossValue [essential]
-      throw Error("This BossValue is not indexable")
+      return this[ index ]
 $endIf
-}#
-endClass
-
-global UndefinedBossValue = BossValue( BossValue.TYPE_UNDEFINED, 0 )
-global NullBossValue = BossValue( BossValue.TYPE_NULL, 0 )
-
-#{
-class NullBossValue : BossValue [singleton]
-  METHODS
-    method init
-
-
-    method is_non_null->Logical
-      return false
-
-    method is_null->Logical
-      return true
-
-    method operator==( other:BossValue )->Logical
-      return  (other is null or other.is_null)
-
-    method operator<( other:BossValue )->Logical
-      return (other and other.is_non_null)
-
-    method to->Int64
-      return 0
-
-    method to->String
-      return "null"
-
-    method to_json( buffer:StringBuilder, flags=0:Int32 )->StringBuilder
-      return buffer.print( "null" )
-endClass
-      }#
-
-#{
-class UndefinedBossValue : NullBossValue [singleton]
-  METHODS
-    method is_undefined->Logical
-      return true
-
-    method to->String
-      return ""
-
-    method to->BossValueList
-      return @[]
-endClass
-
-class LogicalBossValue( value:Logical ) : BossValue
-  GLOBAL PROPERTIES
-    true_value  = LogicalBossValue( true )
-    false_value = LogicalBossValue( false )
-
-  METHODS
-    method is_logical->Logical
-      return true
-
-    method to->Int64
-      if (value) return 1
-      else       return 0
-
-    method to->Logical
-      return value
-
-    method to->String
-      return value->String
-
-    method to_json( buffer:StringBuilder, flags=0:Int32 )->StringBuilder
-      buffer.print( value )
-      return buffer
-endClass
-
-class Real64BossValue( value:Real64 ) : BossValue
-  METHODS
-    method is_number->Logical
-      return true
-
-    method is_real64->Logical
-      return true
-
-    method operator==( other:BossValue )->Logical
-      if (other.is_number)  return (value == other->Real64)
-      if (other.is_logical) return ((value != 0) == other->Logical)
-      else                  return false
-
-    method operator<( other:BossValue )->Logical
-      if (other.is_number) return (value < other->Real64)
-      else                 return object_id < other.object_id
-
-    method operator-()->BossValue
-      return Real64BossValue( -value )
-
-    method operator+( other:BossValue )->BossValue
-      if (not other) return BossValue(0)
-      return Real64BossValue( value + other->Real64 )
-
-    method operator-( other:BossValue )->BossValue
-      if (not other) return BossValue(0)
-      return Real64BossValue( value - other->Real64 )
-
-    method operator*( other:BossValue )->BossValue
-      if (not other) return BossValue(0)
-      return Real64BossValue( value * other->Real64 )
-
-    method operator/( other:BossValue )->BossValue
-      if (not other) return BossValue(0)
-      return Real64BossValue( value / other->Real64 )
-
-    method operator%( other:BossValue )->BossValue
-      if (not other) return BossValue(0)
-      return Real64BossValue( value % other->Real64 )
-
-    method operator^( other:BossValue )->BossValue
-      if (not other) return BossValue(0)
-      return Real64BossValue( value ^ other->Real64 )
-
-    method operator+( other:Real64 )->BossValue
-      if (not other) return BossValue(0)
-      return Real64BossValue( value + other )
-
-    method operator-( other:Real64 )->BossValue
-      if (not other) return BossValue(0)
-      return Real64BossValue( value - other )
-
-    method operator*( other:Real64 )->BossValue
-      if (not other) return BossValue(0)
-      return Real64BossValue( value * other )
-
-    method operator/( other:Real64 )->BossValue
-      if (not other) return BossValue(0)
-      return Real64BossValue( value / other )
-
-    method operator%( other:Real64 )->BossValue
-      if (not other) return BossValue(0)
-      return Real64BossValue( value % other )
-
-    method operator^( other:Real64 )->BossValue
-      if (not other) return BossValue(0)
-      return Real64BossValue( value ^ other )
-
-    method operator+( other:String )->BossValue
-      if (not other) return BossValue(0)
-      return StringBossValue( value + other )
-
-    method operator*( other:String )->BossValue
-      if (not other) return BossValue(0)
-      return StringBossValue( Int32(value) * other )
-
-    method to->Character
-      return this->Int32->Character
-
-    method to->Int64
-      return value
-
-    method to->Real64
-      return value
-
-    method to->String
-      return value.format()
-
-    method to_json( buffer:StringBuilder, flags=0:Int32 )->StringBuilder
-      if (value.fractional_part) buffer.print( value )
-      else                       buffer.print( value, 0 )  # omit the ".0"
-      return buffer
-endClass
-
-class Int32BossValue( value:Int32 ) : BossValue
-  METHODS
-    method is_number->Logical
-      return true
-
-    method is_int32->Logical
-      return true
-
-    method operator==( other:BossValue )->Logical
-      if (other.is_int32)   return (value == other->Int32)
-      if (other.is_int64)   return (value->Int64 == other->Int64)
-      if (other.is_number)  return (value->Real64 == other->Real64)
-      if (other.is_logical) return (value? == other->Logical)
-      else                  return false
-
-    method operator<( other:BossValue )->Logical
-      if (other.is_int32)   return (value < other->Int32)
-      if (other.is_int64)   return (value->Int64 < other->Int64)
-      if (other.is_number)  return (value->Real64 < other->Real64)
-      else                  return object_id < other.object_id
-
-    method operator==( other:Real64 )->Logical
-      return value == other
-
-    method operator==( other:Int64 )->Logical
-      return value == other
-
-    method operator==( other:Int32 )->Logical
-      return value == other
-
-    method operator<( other:Real64 )->Logical
-      return value < other
-
-    method operator<( other:Int64 )->Logical
-      return value < other
-
-    method operator<( other:Int32 )->Logical
-      return value < other
-
-    method operator-()->BossValue
-      return Int32BossValue( -value )
-
-    method operator+( other:BossValue )->BossValue
-      return Int32BossValue( value + other->Int32 )
-
-    method operator-( other:BossValue )->BossValue
-      return Int32BossValue( value - other->Int32 )
-
-    method operator*( other:BossValue )->BossValue
-      return Int32BossValue( value * other->Int32 )
-
-    method operator/( other:BossValue )->BossValue
-      local d = other->Int32
-      if (d == 0) return UndefinedBossValue
-      return Int32BossValue( value / d )
-
-    method operator%( other:BossValue )->BossValue
-      local d = other->Int32
-      if (d == 0) return UndefinedBossValue
-      return Int32BossValue( value % d )
-
-    method operator^( other:BossValue )->BossValue
-      return Int32BossValue( value ^ other->Int32 )
-
-    method operator+( other:Int32 )->BossValue
-      return Int32BossValue( value + other )
-
-    method operator-( other:Int32 )->BossValue
-      return Int32BossValue( value - other )
-
-    method operator*( other:Int32 )->BossValue
-      return Int32BossValue( value * other )
-
-    method operator/( other:Int32 )->BossValue
-      if (other == 0) return UndefinedBossValue
-      return Int32BossValue( value / other )
-
-    method operator%( other:Int32 )->BossValue
-      if (other == 0) return UndefinedBossValue
-      return Int32BossValue( value % other )
-
-    method operator^( other:Int32 )->BossValue
-      return Int32BossValue( value ^ other )
-
-    method operator+( other:Int64 )->BossValue
-      return Int64BossValue( value + other )
-
-    method operator-( other:Int64 )->BossValue
-      return Int64BossValue( value - other )
-
-    method operator*( other:Int64 )->BossValue
-      return Int64BossValue( value * other )
-
-    method operator/( other:Int64 )->BossValue
-      if (other == 0) return UndefinedBossValue
-      return Int64BossValue( value / other )
-
-    method operator%( other:Int64 )->BossValue
-      if (other == 0) return UndefinedBossValue
-      return Int64BossValue( value % other )
-
-    method operator^( other:Int64 )->BossValue
-      return Int64BossValue( value ^ other )
-
-    method operator+( other:Real64 )->BossValue
-      return Real64BossValue( value + other )
-
-    method operator-( other:Real64 )->BossValue
-      return Real64BossValue( value - other )
-
-    method operator*( other:Real64 )->BossValue
-      return Real64BossValue( value * other )
-
-    method operator/( other:Real64 )->BossValue
-      return Real64BossValue( value / other )
-
-    method operator%( other:Real64 )->BossValue
-      return Real64BossValue( value % other )
-
-    method operator^( other:Real64 )->BossValue
-      return Real64BossValue( value ^ other )
-
-    method operator+( other:String )->BossValue
-      return StringBossValue( value + other )
-
-    method operator*( other:String )->BossValue
-      return StringBossValue( Int32(value) * other )
-
-    method to->Character
-      return value->Character
-
-    method to->Int32
-      return value
-
-    method to->Int64
-      return value
-
-    method to->Real64
-      return value->Real64
-
-    method to->String
-      return value->String
-
-    method to_json( buffer:StringBuilder, flags=0:Int32 )->StringBuilder
-      buffer.print( value )
-      return buffer
-endClass
-}#
-
-#{
-class Int64BossValue( value:Int64 ) : BossValue
-  METHODS
-    method is_number->Logical
-      return true
-
-    method is_int64->Logical
-      return true
-
-    method operator==( other:BossValue )->Logical
-      if (other.is_int64 or other.is_int32) return (value == other->Int64)
-      if (other.is_number)                  return (value->Real64 == other->Real64)
-      if (other.is_logical)                 return (value? == other->Logical)
-      else                                  return false
-
-    method operator<( other:BossValue )->Logical
-      if (other.is_int64 or other.is_int32) return (value < other->Int64)
-      if (other.is_number)                  return (value->Real64 < other->Real64)
-      else                                  return object_id < other.object_id
-
-    method operator==( other:Real64 )->Logical
-      return value == other
-
-    method operator==( other:Int64 )->Logical
-      return value == other
-
-    method operator==( other:Int32 )->Logical
-      return value == other
-
-    method operator<( other:Real64 )->Logical
-      return value < other
-
-    method operator<( other:Int64 )->Logical
-      return value < other
-
-    method operator<( other:Int32 )->Logical
-      return value < other
-
-    method operator-()->BossValue
-      return Int64BossValue( -value )
-
-    method operator+( other:BossValue )->BossValue
-      return Int64BossValue( value + other->Int64 )
-
-    method operator-( other:BossValue )->BossValue
-      return Int64BossValue( value - other->Int64 )
-
-    method operator*( other:BossValue )->BossValue
-      return Int64BossValue( value * other->Int64 )
-
-    method operator/( other:BossValue )->BossValue
-      local d = other->Int64
-      if (d == 0) return UndefinedBossValue
-      return Int64BossValue( value / d )
-
-    method operator%( other:BossValue )->BossValue
-      local d = other->Int64
-      if (d == 0) return UndefinedBossValue
-      return Int64BossValue( value % d )
-
-    method operator^( other:BossValue )->BossValue
-      return Int64BossValue( value ^ other->Int64 )
-
-    method operator+( other:Int64 )->BossValue
-      return Int64BossValue( value + other )
-
-    method operator-( other:Int64 )->BossValue
-      return Int64BossValue( value - other )
-
-    method operator*( other:Int64 )->BossValue
-      return Int64BossValue( value * other )
-
-    method operator/( other:Int64 )->BossValue
-      if (other == 0) return UndefinedBossValue
-      return Int64BossValue( value / other )
-
-    method operator%( other:Int64 )->BossValue
-      if (other == 0) return UndefinedBossValue
-      return Int64BossValue( value % other )
-
-    method operator^( other:Int64 )->BossValue
-      return Int64BossValue( value ^ other )
-
-    method operator+( other:Int32 )->BossValue
-      return Int64BossValue( value + other )
-
-    method operator-( other:Int32 )->BossValue
-      return Int64BossValue( value - other )
-
-    method operator*( other:Int32 )->BossValue
-      return Int64BossValue( value * other )
-
-    method operator/( other:Int32 )->BossValue
-      if (other == 0) return UndefinedBossValue
-      return Int64BossValue( value / other )
-
-    method operator%( other:Int32 )->BossValue
-      if (other == 0) return UndefinedBossValue
-      return Int64BossValue( value % other )
-
-    method operator^( other:Int32 )->BossValue
-      return Int64BossValue( value ^ other )
-
-    method operator+( other:Real64 )->BossValue
-      return Real64BossValue( value + other )
-
-    method operator-( other:Real64 )->BossValue
-      return Real64BossValue( value - other )
-
-    method operator*( other:Real64 )->BossValue
-      return Real64BossValue( value * other )
-
-    method operator/( other:Real64 )->BossValue
-      return Real64BossValue( value / other )
-
-    method operator%( other:Real64 )->BossValue
-      return Real64BossValue( value % other )
-
-    method operator^( other:Real64 )->BossValue
-      return Real64BossValue( value ^ other )
-
-    method operator+( other:String )->BossValue
-      return StringBossValue( value + other )
-
-    method operator*( other:String )->BossValue
-      return StringBossValue( Int32(value) * other )
-
-    method to->Character
-      return value->Character
-
-    method to->Int32
-      return value
-
-    method to->Int64
-      return value
-
-    method to->Real64
-      return value->Real64
-
-    method to->String
-      return value->String
-
-    method to_json( buffer:StringBuilder, flags=0:Int32 )->StringBuilder
-      buffer.print( value )
-      return buffer
-endClass
-
-class ObjectBossValue( value:Object ) : BossValue
-  METHODS
-    method is_object->Logical
-      return true
-
-    method to->Logical
-      return (value is not null)
-
-    method to->Object
-      return value
-
-    method to->String
-      return value->String
-
-    method to->BossValueTable
-      return value->BossValueTable
-
-    method to_json( buffer:StringBuilder, flags=0:Int32 )->StringBuilder
-      buffer.print( value->String )
-      return buffer
-endClass
-
-class StringBossValue( value:String ) : BossValue
-  GLOBAL PROPERTIES
-    empty_string = StringBossValue( "" )
-
-  METHODS
-    method count->Int32
-      return value.count
-
-    method decode_indexed( id_table:BossValueIDLookupTable )->BossValue
-      return id_table[ value ]
-
-    method encode_indexed( id_table_builder:BossValueIDTableBuilder )->BossValue
-      return id_table_builder[ this ]
-
-    method get( index:Int32 )->BossValue
-      if (index < 0 or index >= value.count) return UndefinedBossValue
-      return BossValue( ""+value[index] )
-
-    method is_string->Logical
-      return true
-
-    method operator==( other:BossValue )->Logical
-      if (other.is_string) return (value == other->String)
-      else                 return false
-
-    method operator<( other:BossValue )->Logical
-      if (other.is_string) return (value < other->String)
-      else                 return object_id < other.object_id
-
-    method operator+( other:BossValue )->BossValue
-      return StringBossValue( value + other->String )
-
-    method operator*( other:BossValue )->BossValue
-      return StringBossValue( value * other->Int32 )
-
-    method operator+( other:Real64 )->BossValue
-      return StringBossValue( value + other )
-
-    method operator+( other:String )->BossValue
-      return StringBossValue( value + other )
-
-    method to->Character
-      if (value.count > 0) return value[0]
-      else                 return 0->Character
-
-    method to->Int64
-      return value->Int64
-
-    method to->Logical
-      return true
-
-    method to->Real64
-      return value->Real64
-
-    method to->Object
-      return value
-
-    method to->String
-      return value
-
-    method to_json( buffer:StringBuilder, flags=0:Int32 )->StringBuilder
-      return to_json( value, buffer, flags )
-
   GLOBAL METHODS
     method to_json( value:String, buffer:StringBuilder, flags=0:Int32 )->StringBuilder
       if (value)
@@ -1957,706 +1541,7 @@ class StringBossValue( value:String ) : BossValue
       endIf
       return buffer
 endClass
-}#
 
-#{
-class BossValueList : BossValue
-  PROPERTIES
-    data : BossValue[]
+global UndefinedBossValue = BossValue( BossValue.TYPE_UNDEFINED, 0 )
+global NullBossValue = BossValue( BossValue.TYPE_NULL, 0 )
 
-  METHODS
-    method init
-      init( 0 )
-
-    method init( initial_capacity:Int32 )
-      data = BossValue[]( initial_capacity )
-
-    method init( data )
-
-    method cloned->BossValueList
-      local result = BossValueList( count )
-      forEach (value in this)
-        if (value) result.add( value.cloned )
-      endForEach
-      return result
-
-    method apply( fn:Function(BossValue)->BossValue )->BossValue
-      forEach (i of data)
-        data[i] = data[i].apply( fn )
-      endForEach
-
-      local result = fn( this )
-      if (result is null) return NullBossValue
-      else                return result
-
-    method decode_indexed( id_table:BossValueIDLookupTable )->BossValue
-      local result = BossValueList( BossValue[](count) )
-      result.add( (forEach in data).decode_indexed(id_table) )
-      return result
-
-    method encode_indexed( id_table_builder:BossValueIDTableBuilder )->BossValue
-      local result = BossValueList( BossValue[](count) )
-      result.add( (forEach in data).encode_indexed(id_table_builder) )
-      return result
-
-    method add( value:BossValue )->this
-      data.add( value )
-      return this
-
-    method add( other:BossValue[] )->this
-      data.add( other )
-      return this
-
-    method insert( value:BossValue, before_index=0:Int32 )->this
-      data.insert( value, before_index )
-      return this
-
-    method insert( other:BossValue[], before_index=0:Int32 )->this
-      data.insert( other, before_index )
-      return this
-
-    method clear->BossValueList
-      data.clear
-      return this
-
-    method contains( value:String )->Logical
-      forEach (existing in data)
-        if (existing and existing.is_string and existing->String == value) return true
-      endForEach
-      return false
-
-    method contains( value:BossValue )->Logical
-      forEach (existing in data)
-        if (existing and existing == value) return true
-      endForEach
-      return false
-
-    method count->Int32
-      return data.count
-
-    method count( query:(Function(BossValue)->Logical) )->Int32
-      local result = 0
-      forEach (v in data)
-        if (query(v)) ++result
-      endForEach
-      return result
-
-    method first->BossValue
-      return this.get(0)
-
-    method first( query:(Function(BossValue)->Logical) )->BossValue
-      forEach (v in data)
-        if (query(v)) return v
-      endForEach
-      return UndefinedBossValue
-
-    method get( index:Int32 )->BossValue
-      if (index < 0 or index >= data.count) return UndefinedBossValue
-      local result = data[ index ]
-      if (result is null) return UndefinedBossValue
-      return result
-
-    method get( query:(Function(BossValue)->Logical) )->BossValue
-      local results : BossValueList
-      forEach (value in this)
-        if (query(value))
-          ensure results
-          results.add( value )
-        endIf
-      endForEach
-
-      if (results) return results
-      else         return UndefinedBossValue
-
-    method is_collection->Logical
-      return true
-
-    method is_list->Logical
-      return true
-
-    method last->BossValue
-      return this.get( data.count - 1 )
-
-    method last( query:(Function(BossValue)->Logical) )->BossValue
-      forEach (v in data step -1)
-        if (query(v)) return v
-      endForEach
-      return UndefinedBossValue
-
-    method locate( value:BossValue )->BossValue
-      forEach (v at index in this)
-        if (v == value) return index
-      endForEach
-      return UndefinedBossValue
-
-    method locate( query:(Function(BossValue)->Logical) )->BossValue
-      forEach (value at index in this)
-        if (query(value)) return index
-      endForEach
-      return UndefinedBossValue
-
-    method locate_last( value:BossValue )->BossValue
-      forEach (v at index in this step -1)
-        if (v == value) return index
-      endForEach
-      return UndefinedBossValue
-
-    method locate_last( query:(Function(BossValue)->Logical) )->BossValue
-      forEach (value at index in this step -1)
-        if (query(value)) return index
-      endForEach
-      return UndefinedBossValue
-
-    method remove( value:BossValue )->BossValue
-      return data.remove( value )
-
-    method remove( query:(Function(BossValue)->Logical) )->BossValue
-      local results = this[ query ]
-      if (not results) return results
-
-      forEach (v in results) remove( v )
-      return results
-
-    method remove_at( index:Int32 )->BossValue
-      return data.remove_at( index )
-
-    method remove_first->BossValue
-      return data.remove_first
-
-    method remove_last->BossValue
-      return data.remove_last
-
-    method reserve( additional_elements:Int32 )->this
-      data.reserve( additional_elements )
-      return this
-
-    method set( index:Int32, new_value:BossValue )->BossValue [preferred]
-      if (index < 0) return this
-
-      while (index >= data.count) add( NullBossValue )
-
-      if (new_value is null) new_value = NullBossValue
-      data.set( index, new_value )
-
-      return this
-
-    method sort( compare_fn:(Function(a:BossValue,b:BossValue)->Logical) )->this
-      data.sort( compare_fn )
-      return this
-
-    method sorted( compare_fn:(Function(a:BossValue,b:BossValue)->Logical) )->BossValueList
-      return cloned.sort( compare_fn ) as BossValueList
-
-    method to->Logical
-      return true
-
-    method to->String
-      return data->String
-
-    method to->BossValueList
-      return this
-
-    method to_json( buffer:StringBuilder, flags=0:Int32 )->StringBuilder
-      local pretty_print = ((flags & FORMATTED) and (is_complex or (flags & OMIT_COMMAS)))
-
-      buffer.print( '[' )
-
-      if (pretty_print)
-        buffer.println
-        buffer.indent += 2
-      endIf
-
-      local first = true
-      forEach (value in data)
-        if (first)
-          first = false
-        else
-          if (not (flags & OMIT_COMMAS)) buffer.print( ',' )
-          if (pretty_print) buffer.println
-        endIf
-
-        if (value is not null and (value or value.is_logical)) value.to_json( buffer, flags )
-        else                                                   buffer.print( "null" )
-      endForEach
-
-      if (pretty_print)
-        buffer.println
-        buffer.indent -= 2
-      endIf
-
-      buffer.print( ']' )
-      return buffer
-
-$if defined(SCRIPT_HELPERS)
-    method _get_element( index:Int32 )->BossValue [essential]
-      if (index < 0 or index >= count)
-        throw Error("Index out of range")
-      endIf
-      return get(index)
-$endIf
-
-    GLOBAL METHODS
-      method load( file:File )->BossValueList
-        if (not file or not file.exists) return BossValueList()
-        return JSON.parse_list( file.load_as_string )
-
-      method parse( json:String )->BossValueList
-        return JSON.parse_list( json )
-endClass
-
-class BossValueTable
-  PROPERTIES
-    data    : Table<<String,BossValue>>
-
-  METHODS
-    method init
-      data = Table<<String,BossValue>>()
-
-    method init( data )
-
-    method cloned->BossValueTable
-      local result_data = data.cloned
-
-      local cur = result_data.first_entry
-      while (cur)
-        if (cur.value) cur.value = cur.value.cloned
-        cur = cur.next_entry
-      endWhile
-
-      return BossValueTable( result_data )
-
-    method apply( fn:Function(BossValue)->BossValue )->BossValue
-      local cur = data.first_entry
-      while (cur)
-        cur.value = cur.value.apply( fn )
-        cur = cur.next_entry
-      endWhile
-
-      local result = fn( this )
-      if (result is null) return NullBossValue
-      else                return result
-
-    method clear->this
-      data.clear
-      return this
-
-    method contains( key:String )->Logical
-      return data.contains( key )
-
-    method contains( key:BossValue )->Logical
-      if (not key or not key.is_string) return false
-      return contains( key->String )
-
-    method count->Int32
-      return data.count
-
-    method count( query:(Function(BossValue)->Logical) )->Int32
-      local result = 0
-      forEach (v in data.value_reader)
-        if (query(v)) ++result
-      endForEach
-      return result
-
-    method decode_indexed( id_table:BossValueIDLookupTable )->BossValue
-      local result = @{}
-
-      local cur = data.first_entry
-      while (cur)
-        local key = BossValue( cur.key ).decode_indexed( id_table )
-        local value = cur.value.decode_indexed( id_table )
-        result[ key ] = value
-        cur = cur.next_entry
-      endWhile
-
-      return result
-
-    method encode_indexed( id_table_builder:BossValueIDTableBuilder )->BossValue
-      local result = @{}
-
-      local cur = data.first_entry
-      while (cur)
-        local key = BossValue( cur.key ).encode_indexed( id_table_builder )
-        local value = cur.value.encode_indexed( id_table_builder )
-        result[ key ] = value
-        cur = cur.next_entry
-      endWhile
-
-      return result
-
-    method ensure_list( key:String )->BossValueList
-      # Ensures that this table contains a list with the given key, creating
-      # it if necessary, and returns that list.
-      local list = this[ key ] as BossValueList
-      if (list) return list
-      list = @[]
-      this[ key ] = list
-      return list
-
-    method ensure_table( key:String )->BossValueTable
-      # Ensures that this table contains a table with the given key, creating
-      # it if necessary, and returns that table.
-      local table = this[ key ] as BossValueTable
-      if (table) return table
-      table = @{}
-      this[ key ] = table
-      return table
-
-    method first( query:(Function(BossValue)->Logical) )->BossValue
-      forEach (key in keys)
-        local v = this[ key ]
-        if (query(v)) return v
-      endForEach
-      return UndefinedBossValue
-
-    method get( index:Int32 )->BossValue
-      if (index < 0 or index >= count) return UndefinedBossValue
-      local result = data[ keys[index] ]
-      if (result is null) return UndefinedBossValue
-      return result
-
-    method get( key:String )->BossValue
-      local result = data[ key ]
-      if (result is null) return UndefinedBossValue
-      return result
-
-    method get( query:(Function(BossValue)->Logical) )->BossValue
-      local results : BossValueList
-      forEach (key in keys)
-        local value = this[key]
-        if (query(value))
-          ensure results
-          results.add( value )
-        endIf
-      endForEach
-
-      if (results is null) return UndefinedBossValue
-      return results
-
-    method is_collection->Logical
-      return true
-
-    method is_table->Logical
-      return true
-
-    method keys->String[]
-      return data.keys
-
-    method last( query:(Function(BossValue)->Logical) )->BossValue
-      forEach (key in keys step -1)
-        local v = this[ key ]
-        if (query(v)) return v
-      endForEach
-      return UndefinedBossValue
-
-    method locate( value:BossValue )->BossValue
-      local cur = data.first_entry
-      while (cur)
-        if (cur.value == value) return cur.key
-        cur = cur.next_entry
-      endWhile
-      return UndefinedBossValue
-
-    method locate( query:(Function(BossValue)->Logical) )->BossValue
-      forEach (key in keys)
-        if (query(this[key])) return key
-      endForEach
-      return UndefinedBossValue
-
-    method locate_last( value:BossValue )->BossValue
-      return locate( value )
-
-    method locate_last( query:(Function(BossValue)->Logical) )->BossValue
-      return locate( query )
-
-    method remove( value:BossValue )->BossValue
-      return remove( value->String )
-
-    method remove( key:String )->BossValue
-      return data.remove( key )
-
-    method remove( query:(Function(BossValue)->Logical) )->BossValue
-      local remove_keys : String[]
-      local results : @[]
-
-      forEach (key in keys)
-        local v = this[ key ]
-        if (query(v))
-          ensure results
-          ensure remove_keys
-          remove_keys.add( key )
-          results.add( v )
-        endIf
-      endForEach
-
-      if (remove_keys is null) return UndefinedBossValue
-      forEach (key in remove_keys) remove( key )
-      return results
-
-    method remove_at( index:Int32 )->BossValue
-      if (index < 0 or index >= count) return UndefinedBossValue
-      return data.remove( data.keys[index] )
-
-    method set( index:Int32, value:BossValue )->this [preferred]
-      return set( ""+index, value )
-
-    method set( key:String, new_value:BossValue )->this [preferred]
-      if (new_value is null) new_value = NullBossValue
-      data.set( key, new_value )
-      return this
-
-    method sort( compare_fn:(Function(a:BossValue,b:BossValue)->Logical) )->this
-      data.sort( function(a,b) with(compare_fn) => compare_fn(a.value,b.value) )
-      return this
-
-    method to->Logical
-      return true
-
-    method to->String
-      return data->String
-
-    method to->BossValueTable
-      return this
-
-    method to_json( buffer:StringBuilder, flags=0:Int32 )->StringBuilder
-      local pretty_print = ((flags & FORMATTED) and (is_complex or (flags & OMIT_COMMAS)))
-
-      buffer.print( '{' )
-
-      if (pretty_print)
-        buffer.println
-        buffer.indent += 2
-      endIf
-
-      local first = true
-      forEach (key in data.keys)
-        if (first)
-          first = false
-        else
-          if (not (flags & OMIT_COMMAS)) buffer.print( ',' )
-          if (pretty_print) buffer.println
-        endIf
-
-        StringBossValue.to_json( key, buffer, flags )
-        buffer.print( ':' )
-
-        local indent = false
-        local value = data[key]
-        if (pretty_print and ((value and value.is_complex) or (flags & OMIT_COMMAS)))
-          buffer.println
-          indent = (value is null) or (not value.is_collection)
-          if (indent) buffer.indent += 2
-        endIf
-
-        if (value is not null and (value or value.is_logical)) value.to_json( buffer, flags )
-        else                                                   buffer.print( "null" )
-
-        if (indent) buffer.indent -= 2
-      endForEach
-
-      if (pretty_print) buffer.println; buffer.indent -= 2
-
-      buffer.print( '}' )
-      return buffer
-
-    method values( list=null:BossValue )->BossValue
-      if (not list) list = @[]( count )
-
-      local cur = data.first_entry
-      while (cur)
-        list.add( cur.value )
-        cur = cur.next_entry
-      endWhile
-
-      return list
-
-$if defined(SCRIPT_HELPERS)
-    method _get_element( index:Int32 )->BossValue [essential]
-      if (index < 0 or index >= count)
-        throw Error("Index out of range")
-      endIf
-      return get(index)
-
-    method _get_element( key:String )->BossValue [essential]
-      return get(key)
-$endIf
-
-    GLOBAL METHODS
-      method load( file:File )->BossValueTable
-        if (not file or not file.exists) return BossValueTable()
-        return JSON.parse_table( file.load_as_string )
-
-      method parse( json:String )->BossValueTable
-        return JSON.parse_table( json )
-endClass
-}#
-
-#{
-class BossValueIDTableBuilder
-  PROPERTIES
-    id_table = @{}
-    id_list  = @[]
-
-  METHODS
-    method get( value:BossValue )->BossValue
-      local text = value->String
-      local encoded_value = id_table[ text ]
-      if (encoded_value) return encoded_value
-
-      if (id_list.count.digit_count + 1 >= text.count and not text.begins_with('@'))
-        # Encoded ID would be equal to or larger than the original; just leave it as-is.
-        return value
-      endIf
-
-      encoded_value = "@" + id_list.count
-      id_table[ text ] = encoded_value
-
-      id_list.add( value )
-
-      return encoded_value
-
-endClass
-
-class BossValueIDListFragmenter
-  PROPERTIES
-    fragmentation_threshold : Int32
-    index_list  = BossValueIDFragment[]
-    list        = BossValueIDFragment[]
-    fragments   = BossValueIDFragment[]
-    lookup      = Table<<String,BossValueIDFragment>>()
-
-  METHODS
-    method init( original_list:BossValue, fragmentation_threshold=8 )
-      forEach (value in original_list)
-        index_list.add( get_entry(value->String) )
-      endForEach
-
-      while (refine_list) noAction
-
-      (forEach in index_list).generate_fragment_list
-
-    method output_index_list->@[]
-      local result = @[]
-      result.add( (forEach in index_list).index )
-      return result
-
-    method output_fragment_list->@[]
-      local result = @[]
-      forEach (f in fragments)
-        if (f.left_fragment) result.add( @[ f.left_fragment.index, f.right_fragment.index ] )
-        else                 result.add( f.value )
-      endForEach
-      return result
-
-    method refine_list->Logical
-      # Remove any compound entries
-      list.remove( (entry) => entry.left_fragment? )
-
-      # Sort "leaf" entries
-      list.sort( (a,b) => a.value < b.value )
-
-      local made_changes = false
-
-      local limit = list.count
-      local index = 1
-      while (index < limit)
-        made_changes |= process( list[index-1], list[index] )
-        ++index
-      endWhile
-
-      return made_changes
-
-    method get_entry( value:String )->BossValueIDFragment
-      local existing = lookup[ value ]
-      if (existing) return existing
-
-      local entry = BossValueIDFragment( this, value )
-      list.add( entry )
-      return entry
-
-    method process( a:BossValueIDFragment, b:BossValueIDFragment )->Logical
-      if (a.left_fragment or b.left_fragment) return false
-
-      local len = a.value.leftmost_common_substring_count( b.value )
-      if (len <= fragmentation_threshold) return false
-
-      local common = get_entry( a.value.leftmost(len) )
-
-      if (a.value.count > len)
-        a.left_fragment  = common
-        a.right_fragment = get_entry( a.value.rightmost(-len) )
-      endIf
-
-      if (b.value.count > len)
-        b.left_fragment  = common
-        b.right_fragment = get_entry( b.value.rightmost(-len) )
-      endIf
-
-      return true
-endClass
-
-
-class BossValueIDFragment
-  PROPERTIES
-    fragmenter     : BossValueIDListFragmenter
-    value          : String
-    left_fragment  : BossValueIDFragment
-    right_fragment : BossValueIDFragment
-
-    index          : Int32
-    is_written     : Logical
-
-  METHODS
-    method init( fragmenter, value )
-      fragmenter.lookup[ value ] = this
-
-    method generate_fragment_list
-      if (is_written)  return
-      is_written = true
-
-      if (left_fragment)  left_fragment.generate_fragment_list
-      if (right_fragment) right_fragment.generate_fragment_list
-
-      index = fragmenter.fragments.count
-      fragmenter.fragments.add( this )
-
-    method to_debug_string->String
-      if (left_fragment)
-        return "$ [$ $]" (this->String,left_fragment.to_debug_string,right_fragment.to_debug_string)
-      else
-        return value
-      endIf
-
-    method to->String
-      if (left_fragment)
-        return left_fragment->String + right_fragment->String
-      else
-        return value
-      endIf
-
-endClass
-
-
-class BossValueIDLookupTable
-  PROPERTIES
-    id_list   = @[]
-
-  METHODS
-    method init( info:BossValue )
-      id_list = info[ "@id_list" ]
-
-    method get( index_string:String )->BossValue
-      if (not index_string.begins_with('@')) return index_string
-
-      local index = 0
-      forEach (ch at i in index_string)
-        if (i > 0)
-          index = index * 10 + (ch - '0')
-        endIf
-      endForEach
-
-      if (index < 0 or index >= id_list.count) return "(ERROR)"
-
-      return id_list[ index ]
-
-endClass
-}#

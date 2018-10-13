@@ -4,6 +4,7 @@
 #==============================================================================
 $include "Boss/BossCmd.rogue"
 $include "Boss/BossError.rogue"
+$include "Boss/BossJSON.rogue"
 $include "Boss/BossParser.rogue"
 $include "Boss/BossScope.rogue"
 $include "Boss/BossTokenizer.rogue"
