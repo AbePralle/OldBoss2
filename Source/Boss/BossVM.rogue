@@ -5,21 +5,6 @@ uses ParseKit<<Boss>>
 # BossVM
 #==============================================================================
 class BossVM
-  ENUMERATE
-    TYPE_UNDEFINED =  0
-    TYPE_NULL      =  1
-    TYPE_LOGICAL   =  2
-    TYPE_CHARACTER =  3
-    TYPE_INTEGER   =  4
-    TYPE_REAL      =  5
-    TYPE_XY        =  6
-    TYPE_BOX       =  7
-    TYPE_OBJECT    =  8
-    TYPE_VALUE     =  9
-    TYPE_STRING    = 10
-    TYPE_LIST      = 11
-    TYPE_TABLE     = 12
-
   PROPERTIES
     parser      = BossParser( this )
     scope       : BossScope
@@ -34,19 +19,28 @@ class BossVM
 
     last_error  : BossError
 
+    global_statements = CmdStatements()
+
   METHODS
-    method init_object
+    method init
       internal_t = Token( TokenType.EOI, "[BossVM]", 0, 0 )
 
       type_Global = type( "Global", BossType.OBJECT )
-      type_Int32  = type( "Int32", BossType.INT32 )
+      type_Int32  = type( "Int32",  BossType.INT32 )
 
-    method init
-      BossVM = this  # assign singleton
+    method execute->BossValue
+      local result = UndefinedBossValue
+      local i = 0
+      while (i < global_statements.count)
+        result = global_statements[i].execute( this )
+        ++i
+      endWhile
+      global_statements.clear
+      return result
 
-    method parse( filepath:String, source:String, scope, global_statement_buffer:CmdStatements )->Logical
+    method parse( filepath:String, source:String, scope, global_statement_buffer=null:CmdStatements )->Logical
+      if (global_statement_buffer is null) global_statement_buffer = global_statements
       try
-        BossVM = this   # assign singleton
         parser.set_source( filepath, source )
         parser.parse_multi_line_statements( global_statement_buffer )
         return true

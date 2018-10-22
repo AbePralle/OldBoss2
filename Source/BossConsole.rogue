@@ -1,5 +1,3 @@
-$include "Boss"
-
 uses Boss
 uses ParseKit<<Boss>>
 
@@ -12,24 +10,27 @@ class BossConsole
   METHODS
     method init
       loop
-        local global_statements = CmdStatements()
         local cmd = Console.input( "Boss> " )
-        vm.parse( "[Console]", cmd, vm.type("Global"), global_statements )
+        vm.parse( "[Console]", cmd, vm.type("Global") )
 
         try
-          BossVM = vm
-          global_statements.resolve
+          local result = vm.execute
+          if (result.exists)
+            println result
+          endIf
         catch (err:BossError)
           err.print
           nextIteration
         endTry
 
+        #{
         forEach (statement at index in global_statements)
           local result = statement.execute
           if (result.is_defined)
             println result->String
           endIf
         endForEach
+        }#
 
       endLoop
 endClass
