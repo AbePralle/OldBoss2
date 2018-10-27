@@ -9,40 +9,53 @@ class BossVM
     parser      = BossParser( this )
     scope       : BossScope
 
-    stack       = BossValue[]
-
     internal_t  : Token
     types       = StringTable<<BossType>>()
 
-    type_Global : BossType
-    type_Int32  : BossType
+    #type_Global : BossType
+    #type_Int32  : BossType
 
     last_error  : BossError
 
+    global_vars = LookupList<<BossValue>>()
     global_statements = CmdStatements()
 
   METHODS
     method init
       internal_t = Token( TokenType.EOI, "[BossVM]", 0, 0 )
 
-      type_Global = type( "Global", BossType.OBJECT )
-      type_Int32  = type( "Int32",  BossType.INT32 )
+      #type_Global = type( "Global", BossType.OBJECT )
+      #type_Int32  = type( "Int32",  BossType.INT32 )
 
     method execute->BossValue
-      local result = UndefinedBossValue
-      local i = 0
-      while (i < global_statements.count)
-        result = global_statements[i].execute( this )
-        ++i
-      endWhile
-      global_statements.clear
-      return result
+      try
+        forEach (statement at i in global_statements)
+          global_statements[i] = statement.resolve( this )
+        endForEach
+
+        local result = UndefinedBossValue
+        local i = 0
+        while (i < global_statements.count)
+          result = global_statements[i].execute( this )
+          ++i
+        endWhile
+        global_statements.clear
+        return result
+
+      catch ( err:BossError )
+        global_statements.clear
+        throw err
+
+      endTry
 
     method parse( filepath:String, source:String, scope, global_statement_buffer=null:CmdStatements )->Logical
       if (global_statement_buffer is null) global_statement_buffer = global_statements
       try
         parser.set_source( filepath, source )
-        parser.parse_multi_line_statements( global_statement_buffer )
+        loop
+          if (parser.parse_multi_line_statements(global_statement_buffer)) nextIteration
+          escapeLoop
+        endLoop
         return true
       catch (err:BossError)
         err.print

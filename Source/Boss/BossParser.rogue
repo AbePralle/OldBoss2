@@ -77,7 +77,7 @@ class BossParser : Parser
       return consumed_any
 
     method next_is_statement->Logical [macro]
-      (not this.peek.type.is_structural)
+      return (not this.peek.type.is_structural)
 
     method parse_statements( statements:CmdStatements, end_type:TokenType )
       if (consume_eols)
@@ -90,12 +90,15 @@ class BossParser : Parser
         consume_eols
       endIf
 
-    method parse_multi_line_statements( statements:CmdStatements )
+    method parse_multi_line_statements( statements:CmdStatements )->Logical
       consume_end_commands
+      local found_any = false
       while (next_is_statement)
         parse_statement( statements, &allow_control_structures )
         consume_end_commands
+        found_any = true
       endWhile
+      return found_any
 
     method parse_single_line_statements( statements:CmdStatements )
       while (next_is_statement)
@@ -111,15 +114,28 @@ class BossParser : Parser
       endIf
 
     method parse_statement( statements:CmdStatements, &allow_control_structures )
-      local expr = parse_expression()
-
       local t = peek
+
+      if (consume(TokenType.KEYWORD_GLOBAL))
+        local name = read_identifier
+        local expr : Cmd
+        if (consume(TokenType.SYMBOL_EQUALS)) expr = parse_expression()
+        statements.add( CmdGlobal(t,name,expr) )
+        return
+      endIf
+
+      local expr = parse_expression()
       if (consume(TokenType.SYMBOL_EQUALS))
         statements.add( CmdAssign(t,expr,parse_expression()) )
       else
         statements.add( expr )
       endIf
 
+    method read_identifier->String
+      if (not next_is(TokenType.IDENTIFIER))
+        throw peek.error( "Identifier expected." )
+      endIf
+      return read->String
 endClass
 
 

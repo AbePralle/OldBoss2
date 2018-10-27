@@ -1145,6 +1145,7 @@ class BossValue( type:Int32, value:Int64, x:Real64, y:Real64, z:Real64, object:O
         case TYPE_LIST
           local list = (object as Value[])
           while (index >= list.count) add( UndefinedBossValue )
+          list[ index ] = value
         case TYPE_TABLE
           set( index->String, value )
         case TYPE_CUSTOM

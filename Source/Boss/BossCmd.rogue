@@ -10,7 +10,7 @@ augment Cmd
       throw UnsupportedOperationError()
 
     method resolve( vm:BossVM )->Cmd
-      throw UnsupportedOperationError()
+      return this
 
     method resolve_assignment( vm:BossVM, new_value:Cmd )->Cmd
       throw t.error( "Illegal assignment" )
@@ -62,7 +62,7 @@ augment CmdBinary
       return resolve_op
 
     method resolve_op->Cmd
-      throw UnsupportedOperationError()
+      return this
 endAugment
 
 class CmdBinaryOp<<$SYMBOL>> : CmdBinary
@@ -72,6 +72,12 @@ class CmdBinaryOp<<$SYMBOL>> : CmdBinary
 
     method op->String
       return $string($SYMBOL)
+endClass
+
+class CmdLiteralUndefined( t ) : Cmd
+  METHODS
+    method execute( vm:BossVM )->BossValue
+      return UndefinedBossValue
 endClass
 
 class CmdLiteralInt32( t, value:Int32 ) : Cmd
@@ -207,9 +213,56 @@ endClass
 
 class CmdReadVariable( t, name:String ) : Cmd
   METHODS
+    method resolve( vm:BossVM )->Cmd
+      if (vm.global_vars.contains(name))
+        return CmdReadGlobal( t, name, vm.global_vars.index(name) ).resolve( vm )
+      else
+        throw t.error( 'No such method or variable: "$".' (name) )
+      endIf
 endClass
 
 class CmdWriteVariable( t, name:String, new_value:Cmd ) : Cmd
   METHODS
+    method resolve( vm:BossVM )->Cmd
+      if (vm.global_vars.contains(name))
+        return CmdWriteGlobal( t, name, vm.global_vars.index(name), new_value ).resolve( vm )
+      else
+        throw t.error( 'No such method or variable: "$".' (name) )
+      endIf
+endClass
+
+class CmdReadGlobal( t, name:String, index:Int32 ) : Cmd
+  METHODS
+    method execute( vm:BossVM )->BossValue
+      return vm.global_vars[ index ]
+endClass
+
+class CmdWriteGlobal( t, name:String, index:Int32, new_value:Cmd ) : Cmd
+  METHODS
+    method execute( vm:BossVM )->BossValue
+      local result = new_value.execute( vm )
+      vm.global_vars[ index ] = result
+      return result
+endClass
+
+
+class CmdGlobal( t, name:String, initial_value:Cmd, index=-1:Int32 ) : Cmd
+  METHODS
+    method execute( vm:BossVM )->BossValue
+      if (initial_value)
+        vm.global_vars[ index ] = initial_value.execute( vm )
+      endIf
+      return UndefinedBossValue
+
+    method resolve( vm:BossVM )->Cmd
+      if (index == -1)
+        if (vm.global_vars.contains(name))
+          throw t.error( 'A global variable named "$" already exists.' (name) )
+        endIf
+        index = vm.global_vars.count
+        vm.global_vars[ name ] = UndefinedBossValue
+      endIf
+      initial_value = initial_value.resolve( vm )
+      return this
 endClass
 

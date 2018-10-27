@@ -13,13 +13,11 @@ augment TokenType
   INTEGER( "integer" )
   IDENTIFIER( "identifier" )
 
-  KEYWORD_CLEAR       ( "clear", &is_keyword )
   KEYWORD_EXIT        ( "exit",  &is_keyword )
   KEYWORD_LIST        ( "list",  &is_keyword )
-  KEYWORD_Q           ( "q",     &is_keyword )
-  KEYWORD_QUIT        ( "quit",  &is_keyword )
   KEYWORD_TRUE        ( "true",  &is_keyword )
   KEYWORD_FALSE       ( "false", &is_keyword )
+  KEYWORD_GLOBAL      ( "global", &is_keyword )
 
   SYMBOL_AMPERSAND    ( "&",   &is_symbol )
   SYMBOL_ASTERISK     ( "*",   &is_symbol )

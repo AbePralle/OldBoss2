@@ -1,0 +1,8 @@
+module Boss
+
+class BossObject : CustomBossValue
+  PROPERTIES
+    properties = BossValue.table : BossValue
+
+  METHODS
+endClass
