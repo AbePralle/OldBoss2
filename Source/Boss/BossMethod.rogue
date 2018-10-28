@@ -1,0 +1,30 @@
+module Boss
+  uses ParseKit<<Boss>>
+
+class BossMethod
+  PROPERTIES
+    type_context : BossType
+    t            : Token
+    name         : String
+    statements   = CmdStatements()
+
+  METHODS
+    method init( type_context, t, name )
+
+    method execute->BossValue
+      local vm = type_context.vm
+
+      local result = UndefinedBossValue
+      forEach (statement in statements)
+        result = statement.execute( vm )
+      endForEach
+
+      return result
+
+    method resolve
+      local vm = type_context.vm
+      forEach (statement at i in statements)
+        statements[i] = statement.resolved( vm )
+      endForEach
+
+endClass

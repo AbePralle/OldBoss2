@@ -1,5 +1,5 @@
 module Boss
-uses ParseKit<<Boss>>
+  uses ParseKit<<Boss>>
 
 #==============================================================================
 # Cmd Nodes (Parse Tree / AST)
@@ -9,7 +9,7 @@ augment Cmd
     method execute( vm:BossVM )->BossValue
       throw UnsupportedOperationError()
 
-    method resolve( vm:BossVM )->Cmd
+    method resolved( vm:BossVM )->Cmd
       return this
 
     method resolve_assignment( vm:BossVM, new_value:Cmd )->Cmd
@@ -25,23 +25,23 @@ augment CmdStatements
 
     method resolve( vm:BossVM )
       forEach (statement at index in this)
-        this[ index ] = statement.resolve( vm )
+        this[ index ] = statement.resolved( vm )
       endForEach
 endAugment
 
 augment CmdArgs
   METHODS
-    method resolve( vm:BossVM )->Cmd
+    method resolved( vm:BossVM )->Cmd
       forEach (arg at index in args)
-        args[ index ] = arg.resolve
+        args[ index ] = arg.resolved
         # TODO: require_value
       endForEach
 endAugment
 
 augment CmdUnary
   METHODS
-    method resolve( vm:BossVM )->Cmd
-      operand = operand.resolve( vm )
+    method resolved( vm:BossVM )->Cmd
+      operand = operand.resolved( vm )
       return this
 endAugment
 
@@ -56,9 +56,9 @@ endClass
 
 augment CmdBinary
   METHODS
-    method resolve( vm:BossVM )->Cmd
-      left = left.resolve( vm )
-      right = right.resolve( vm )
+    method resolved( vm:BossVM )->Cmd
+      left = left.resolved( vm )
+      right = right.resolved( vm )
       return resolve_op
 
     method resolve_op->Cmd
@@ -85,7 +85,7 @@ class CmdLiteralInt32( t, value:Int32 ) : Cmd
     method execute( vm:BossVM )->BossValue
       return value
 
-    method resolve( vm:BossVM )->Cmd
+    method resolved( vm:BossVM )->Cmd
       return this
 
     method to->String
@@ -189,8 +189,8 @@ endClass
 
 class CmdAssign( t, left:Cmd, right:Cmd ) : Cmd
   METHODS
-    method resolve( vm:BossVM )->Cmd
-      return left.resolve_assignment( vm, right.resolve(vm) )
+    method resolved( vm:BossVM )->Cmd
+      return left.resolve_assignment( vm, right.resolved(vm) )
 
     method to->String
       return "$ = $" (left,right)
@@ -201,11 +201,11 @@ class CmdAccess( t, name:String ) : Cmd
     method init( t )
       name = t->String
 
-    method resolve( vm:BossVM )->Cmd
-      return CmdReadVariable( t, name ).resolve( vm )
+    method resolved( vm:BossVM )->Cmd
+      return CmdReadVariable( t, name ).resolved( vm )
 
     method resolve_assignment( vm:BossVM, new_value:Cmd )->Cmd
-      return CmdWriteVariable( t, name, new_value ).resolve( vm )
+      return CmdWriteVariable( t, name, new_value ).resolved( vm )
 
     method to->String
       return name
@@ -213,9 +213,9 @@ endClass
 
 class CmdReadVariable( t, name:String ) : Cmd
   METHODS
-    method resolve( vm:BossVM )->Cmd
+    method resolved( vm:BossVM )->Cmd
       if (vm.global_vars.contains(name))
-        return CmdReadGlobal( t, name, vm.global_vars.index(name) ).resolve( vm )
+        return CmdReadGlobal( t, name, vm.global_vars.index(name) ).resolved( vm )
       else
         throw t.error( 'No such method or variable: "$".' (name) )
       endIf
@@ -223,9 +223,9 @@ endClass
 
 class CmdWriteVariable( t, name:String, new_value:Cmd ) : Cmd
   METHODS
-    method resolve( vm:BossVM )->Cmd
+    method resolved( vm:BossVM )->Cmd
       if (vm.global_vars.contains(name))
-        return CmdWriteGlobal( t, name, vm.global_vars.index(name), new_value ).resolve( vm )
+        return CmdWriteGlobal( t, name, vm.global_vars.index(name), new_value ).resolved( vm )
       else
         throw t.error( 'No such method or variable: "$".' (name) )
       endIf
@@ -254,7 +254,7 @@ class CmdGlobal( t, name:String, initial_value:Cmd, index=-1:Int32 ) : Cmd
       endIf
       return UndefinedBossValue
 
-    method resolve( vm:BossVM )->Cmd
+    method resolved( vm:BossVM )->Cmd
       if (index == -1)
         if (vm.global_vars.contains(name))
           throw t.error( 'A global variable named "$" already exists.' (name) )
@@ -262,7 +262,7 @@ class CmdGlobal( t, name:String, initial_value:Cmd, index=-1:Int32 ) : Cmd
         index = vm.global_vars.count
         vm.global_vars[ name ] = UndefinedBossValue
       endIf
-      initial_value = initial_value.resolve( vm )
+      initial_value = initial_value.resolved( vm )
       return this
 endClass
 

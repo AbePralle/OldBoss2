@@ -11,7 +11,7 @@ class BossConsole
     method init
       loop
         local cmd = Console.input( "Boss> " )
-        vm.parse( "[Console]", cmd, vm.type("Global") )
+        vm.parse( "[Console]", cmd )
 
         try
           local result = vm.execute
@@ -22,15 +22,6 @@ class BossConsole
           err.print
           nextIteration
         endTry
-
-        #{
-        forEach (statement at index in global_statements)
-          local result = statement.execute
-          if (result.is_defined)
-            println result->String
-          endIf
-        endForEach
-        }#
 
       endLoop
 endClass

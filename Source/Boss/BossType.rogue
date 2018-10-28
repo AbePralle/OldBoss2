@@ -1,25 +1,28 @@
 module Boss
-uses ParseKit<<Boss>>
+  uses ParseKit<<Boss>>
 
 class BossType
-  DEFINITIONS
-    MASK      = 0b1111
-    INT32     = 0b0000
-    OBJECT    = 0b1000
-    UNDEFINED = 0b1111
-
   PROPERTIES
+    vm         : BossVM
     t          : Token
     name       : String
     attributes : Int32
 
+    methods    = LookupList<<BossMethod>>()
+
   METHODS
-    method init( t, name, attributes )
+    method init( vm, t, name, attributes=0 )
 
-    method is_int32->Logical
-      return ((attributes & MASK) == INT32)
+    method get_method( name:String )->BossMethod
+      return get_method( t, name )
 
-    method is_primitive->Logical
-      return ((attributes & MASK) < OBJECT)
+    method get_method( t:Token, name:String )->BossMethod
+      local result = methods[ name ]
+      if (result) return result
+      result = BossMethod( this, t, name )
+      methods[ name ] = result
+      return result
 
+    method resolve
+      (forEach in methods).resolve
 endClass

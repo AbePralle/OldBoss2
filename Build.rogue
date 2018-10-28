@@ -19,11 +19,20 @@ routine rogo_clean
 endRoutine
 
 routine rogo_boss
+  rogo_build
+  rogo_run
+endRoutine
+
+routine rogo_build
   File.create_folder( "Build" )
   local exe = "Build/Boss-$" (System.os)
   if (Files("Source","**.rogue").any_newer_than(exe))
     execute( "roguec Source/BossConsole.rogue --debug --output=$ --compile" (exe) )
   endIf
+endRoutine
+
+routine rogo_run
+  local exe = "Build/Boss-$" (System.os)
   execute( "$" (exe) )
 endRoutine
 

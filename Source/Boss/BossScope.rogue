@@ -1,13 +1,16 @@
 module Boss
-uses ParseKit<<Boss>>
+  uses ParseKit<<Boss>>
 
 #==============================================================================
 # BossScope
 #==============================================================================
-class BossScope [singleton]
+class BossScope
   PROPERTIES
-    this_type : BossType
+    this_type   : BossType
+    this_method : BossMethod
+    #local_vars = LookupList<<BossValue>>()
 
   METHODS
-    method init( this_type )
+    method init( this_method )
+      this_type = this_method.type_context
 endClass

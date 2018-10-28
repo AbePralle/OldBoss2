@@ -1,5 +1,5 @@
 module Boss
-uses ParseKit<<Boss>>
+  uses ParseKit<<Boss>>
 
 #==============================================================================
 # BossVM
@@ -7,53 +7,55 @@ uses ParseKit<<Boss>>
 class BossVM
   PROPERTIES
     parser      = BossParser( this )
-    scope       : BossScope
 
     internal_t  : Token
-    types       = StringTable<<BossType>>()
-
-    #type_Global : BossType
-    #type_Int32  : BossType
-
     last_error  : BossError
 
-    global_vars = LookupList<<BossValue>>()
+    is_resolved : Logical
+    types       = LookupList<<BossType>>()
+    type_Global : BossType
+
+
+    string_to_id_map  = StringTable<<Int32>>()
+    global_vars       = LookupList<<BossValue>>()
     global_statements = CmdStatements()
+    m_on_execute      : BossMethod
+
+    scope : BossScope
 
   METHODS
     method init
       internal_t = Token( TokenType.EOI, "[BossVM]", 0, 0 )
-
-      #type_Global = type( "Global", BossType.OBJECT )
-      #type_Int32  = type( "Int32",  BossType.INT32 )
+      type_Global = get_type( "Global" )
+      clear_global_statements
 
     method execute->BossValue
       try
-        forEach (statement at i in global_statements)
-          global_statements[i] = statement.resolve( this )
-        endForEach
+        if (not is_resolved)
+          m_on_execute.statements.add( global_statements )
+          global_statements.clear
+          (forEach in types).resolve
+        endIf
 
-        local result = UndefinedBossValue
-        local i = 0
-        while (i < global_statements.count)
-          result = global_statements[i].execute( this )
-          ++i
-        endWhile
-        global_statements.clear
+        local result = m_on_execute.execute
+        clear_global_statements
         return result
 
       catch ( err:BossError )
-        global_statements.clear
+        clear_global_statements
         throw err
 
       endTry
 
-    method parse( filepath:String, source:String, scope, global_statement_buffer=null:CmdStatements )->Logical
-      if (global_statement_buffer is null) global_statement_buffer = global_statements
+    method parse( filepath:String, source:String )->Logical
+      is_resolved = false
+
+      scope = BossScope( m_on_execute )
+
       try
         parser.set_source( filepath, source )
         loop
-          if (parser.parse_multi_line_statements(global_statement_buffer)) nextIteration
+          if (parser.parse_multi_line_statements(global_statements)) nextIteration
           escapeLoop
         endLoop
         return true
@@ -75,7 +77,7 @@ class BossVM
       endTry
       }#
 
-    method type( t:Token, name:String, attributes:Int32 )->BossType
+    method get_type( t:Token, name:String, attributes=0:Int32 )->BossType
       local result = types[ name ]
       if (result)
         if (result.t is internal_t)
@@ -83,12 +85,24 @@ class BossVM
           result.attributes = attributes
         endIf
       else
-        result = BossType( t, name, attributes )
+        result = BossType( this, t, name, attributes )
         types[ name ] = result
       endIf
       return result
 
-    method type( name:String, attributes=BossType.UNDEFINED:Int32 )->BossType
-      return type( internal_t, name, attributes )
+    method get_type( name:String, attributes=0:Int32 )->BossType
+      return get_type( internal_t, name, attributes )
+
+    method clear_global_statements
+      m_on_execute = type_Global.get_method( "on_execute" )
+      m_on_execute.statements.clear
+
+    method string_to_id( st:String )->Int32
+      local entry = string_to_id_map.find( st )
+      if (entry) return entry.value
+
+      local result = string_to_id_map.count
+      string_to_id_map[ st ] = result
+      return result
 endClass
 
