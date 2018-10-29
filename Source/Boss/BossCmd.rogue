@@ -9,7 +9,7 @@ augment Cmd
     method execute( vm:BossVM )->BossValue
       throw UnsupportedOperationError()
 
-    method exit_scope( scope:BossScope )
+    method exit_scope( vm:BossVM )
       noAction
 
     method resolved( vm:BossVM )->Cmd
@@ -31,7 +31,7 @@ augment CmdStatements
         this[ index ] = statement.resolved( vm )
       endForEach
 
-      (forEach in this).exit_scope( vm.scope )
+      (forEach in this).exit_scope( vm )
 endAugment
 
 augment CmdArgs
@@ -277,21 +277,21 @@ class CmdLocal( t, name:String, initial_value:Cmd, index=-1:Int32 ) : Cmd
       #vm.global_vars[ index ] = initial_value.execute( vm )
       return UndefinedBossValue
 
-    method exit_scope( scope:BossScope )
-      require scope.locals.count
-      scope.locals.remove_last
+    method exit_scope( vm:BossVM )
+      require vm.locals.count
+      vm.locals.remove_last
 
     method resolved( vm:BossVM )->Cmd
       if (index == -1)
-        local v = vm.scope.find_local( name )
+        local v = vm.find_local( name )
         if (v.exists)
           throw t.error( 'A local variable named "$" already exists.' (name) )
         else
           if (initial_value) initial_value .= resolved( vm )
           else               initial_value = CmdLiteralUndefined(t)
-          index = vm.scope.this_method.add_local( t, name, initial_value )
+          index = vm.this_method.add_local( t, name, initial_value )
         endIf
       endIf
-      vm.scope.locals.add( vm.scope.this_method.locals[index] )
+      vm.locals.add( vm.this_method.locals[index] )
 endClass
 

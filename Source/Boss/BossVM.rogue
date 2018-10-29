@@ -26,7 +26,10 @@ class BossVM
     global_statements = CmdStatements()
     m_on_execute      : BossMethod
 
-    scope : BossScope
+    locals      = BossLocal[]
+
+    this_type   : BossType
+    this_method : BossMethod
 
   METHODS
     method init
@@ -60,6 +63,12 @@ class BossVM
 
       endTry
 
+    method find_local( name:String )->BossLocal?
+      forEach (v in locals)
+        if (v.name == name) return v
+      endForEach
+      return null
+
     method get_type( t:Token, name:String, attributes=0:Int32 )->BossType
       local result = types[ name ]
       if (result)
@@ -79,7 +88,8 @@ class BossVM
     method parse( filepath:String, source:String )->Logical
       is_resolved = false
 
-      scope = BossScope( m_on_execute )
+      this_method = m_on_execute
+      this_type = this_method.type_context
 
       try
         parser.set_source( filepath, source )
