@@ -207,33 +207,27 @@ class CmdAccess( t, name:String ) : Cmd
       name = t->String
 
     method resolved( vm:BossVM )->Cmd
-      return CmdReadVariable( t, name ).resolved( vm )
-
-    method resolve_assignment( vm:BossVM, new_value:Cmd )->Cmd
-      return CmdWriteVariable( t, name, new_value ).resolved( vm )
-
-    method to->String
-      return name
-endClass
-
-class CmdReadVariable( t, name:String ) : Cmd
-  METHODS
-    method resolved( vm:BossVM )->Cmd
-      if (vm.global_vars.contains(name))
+      local v = vm.find_local( name )
+      if (v.exists)
+        return CmdReadLocal( t, name, v.value.index ).resolved( vm )
+      elseIf (vm.global_vars.contains(name))
         return CmdReadGlobal( t, name, vm.global_vars.index(name) ).resolved( vm )
       else
         throw t.error( 'No such method or variable: "$".' (name) )
       endIf
-endClass
 
-class CmdWriteVariable( t, name:String, new_value:Cmd ) : Cmd
-  METHODS
-    method resolved( vm:BossVM )->Cmd
-      if (vm.global_vars.contains(name))
+    method resolve_assignment( vm:BossVM, new_value:Cmd )->Cmd
+      local v = vm.find_local( name )
+      if (v.exists)
+        return CmdWriteLocal( t, name, v.value.index, new_value ).resolved( vm )
+      elseIf (vm.global_vars.contains(name))
         return CmdWriteGlobal( t, name, vm.global_vars.index(name), new_value ).resolved( vm )
       else
         throw t.error( 'No such method or variable: "$".' (name) )
       endIf
+
+    method to->String
+      return name
 endClass
 
 class CmdReadGlobal( t, name:String, index:Int32 ) : Cmd
@@ -247,6 +241,20 @@ class CmdWriteGlobal( t, name:String, index:Int32, new_value:Cmd ) : Cmd
     method execute( vm:BossVM )->BossValue
       local result = new_value.execute( vm )
       vm.global_vars[ index ] = result
+      return result
+endClass
+
+class CmdReadLocal( t, name:String, index:Int32 ) : Cmd
+  METHODS
+    method execute( vm:BossVM )->BossValue
+      return vm.stack[ vm.fp+index ]
+endClass
+
+class CmdWriteLocal( t, name:String, index:Int32, new_value:Cmd ) : Cmd
+  METHODS
+    method execute( vm:BossVM )->BossValue
+      local result = new_value.execute( vm )
+      vm.stack[ vm.fp+index ] = result
       return result
 endClass
 
@@ -273,8 +281,9 @@ endClass
 
 
 class CmdLocal( t, name:String, initial_value:Cmd, index=-1:Int32 ) : Cmd
+  METHODS
     method execute( vm:BossVM )->BossValue
-      #vm.global_vars[ index ] = initial_value.execute( vm )
+      vm.stack[ vm.fp+index ] = initial_value.execute( vm )
       return UndefinedBossValue
 
     method exit_scope( vm:BossVM )
@@ -287,11 +296,12 @@ class CmdLocal( t, name:String, initial_value:Cmd, index=-1:Int32 ) : Cmd
         if (v.exists)
           throw t.error( 'A local variable named "$" already exists.' (name) )
         else
-          if (initial_value) initial_value .= resolved( vm )
+          if (initial_value) initial_value = initial_value.resolved( vm )
           else               initial_value = CmdLiteralUndefined(t)
           index = vm.this_method.add_local( t, name, initial_value )
         endIf
       endIf
-      vm.locals.add( vm.this_method.locals[index] )
+      vm.locals.add( vm.this_method.locals[index-1] )
+      return this
 endClass
 

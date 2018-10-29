@@ -14,7 +14,7 @@ class BossMethod
     method init( type_context, t, name )
 
     method add_local( t:Token, name:String, initial_value:Cmd )->Int32
-      local index = locals.count
+      local index = locals.count + 1
       locals.add( BossLocal(t,name,initial_value,index) )
       return index
 

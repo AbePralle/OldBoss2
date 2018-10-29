@@ -116,6 +116,14 @@ class BossParser : Parser
     method parse_statement( statements:CmdStatements, &allow_control_structures )
       local t = peek
 
+      if (consume(TokenType.KEYWORD_LOCAL))
+        local name = read_identifier
+        local expr : Cmd
+        if (consume(TokenType.SYMBOL_EQUALS)) expr = parse_expression()
+        statements.add( CmdLocal(t,name,expr) )
+        return
+      endIf
+
       if (consume(TokenType.KEYWORD_GLOBAL))
         local name = read_identifier
         local expr : Cmd
