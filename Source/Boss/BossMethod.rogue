@@ -7,9 +7,39 @@ class BossMethod
     t            : Token
     name         : String
     statements   = CmdStatements()
+    locals       = BossLocal[]
+    param_count  : Int32
 
   METHODS
     method init( type_context, t, name )
+
+    method add_local( t:Token, name:String, initial_value:Cmd )->Int32
+      local index = locals.count
+      locals.add( BossLocal(t,name,initial_value,index) )
+      return index
+
+    method call( arg_count:Int32 )
+      local vm    = type_context.vm
+      local stack = vm.stack
+      local old_fp = vm.fp
+      vm.fp = stack.count - (arg_count+1)
+
+      while (arg_count > param_count)
+        stack.remove_last
+        --arg_count
+      endWhile
+      while (arg_count < param_count)
+        stack.add( UndefinedBossValue )
+        ++arg_count
+      endWhile
+
+      loop( locals.count - param_count )
+        stack.add( UndefinedBossValue )
+      endLoop
+
+      stack[ vm.fp ] = execute
+      stack.discard_from( vm.fp+1 )
+      vm.fp = old_fp
 
     method execute->BossValue
       local vm = type_context.vm

@@ -9,19 +9,26 @@ class BossConsole
 
   METHODS
     method init
+      if (System.command_line_arguments.count)
+        execute( System.command_line_arguments.join(" ") )
+      else
+        repl
+      endIf
+
+    method execute( cmd:String )
+      vm.parse( "[Console]", cmd )
+
+      try
+        local result = vm.execute
+        if (result.exists)
+          println result
+        endIf
+      catch (err:BossError)
+        err.print
+      endTry
+
+    method repl
       loop
-        local cmd = Console.input( "Boss> " )
-        vm.parse( "[Console]", cmd )
-
-        try
-          local result = vm.execute
-          if (result.exists)
-            println result
-          endIf
-        catch (err:BossError)
-          err.print
-          nextIteration
-        endTry
-
+        execute( Console.input("Boss> ") )
       endLoop
 endClass

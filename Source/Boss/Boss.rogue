@@ -5,6 +5,7 @@
 $include "Boss/BossCmd.rogue"
 $include "Boss/BossError.rogue"
 $include "Boss/BossJSON.rogue"
+$include "Boss/BossLocal.rogue"
 $include "Boss/BossMethod.rogue"
 $include "Boss/BossObject.rogue"
 $include "Boss/BossParser.rogue"

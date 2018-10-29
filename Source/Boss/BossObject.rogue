@@ -2,7 +2,9 @@ module Boss
 
 class BossObject : CustomBossValue
   PROPERTIES
-    properties = BossValue.table : BossValue
+    type       : BossType
+    properties = LookupList<<BossValue>>()
 
   METHODS
+    method init( type )
 endClass

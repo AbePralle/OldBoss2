@@ -1,0 +1,8 @@
+module Boss
+  uses ParseKit<<Boss>>
+
+class BossLocal( t:Token, name:String, initial_value:Cmd, index:Int32 ) [compound]
+  METHODS
+    method to->String
+      return "[$] $" (index,name)
+endClass

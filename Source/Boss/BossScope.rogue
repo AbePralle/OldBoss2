@@ -8,9 +8,15 @@ class BossScope
   PROPERTIES
     this_type   : BossType
     this_method : BossMethod
-    #local_vars = LookupList<<BossValue>>()
+    locals      = BossLocal[]
 
   METHODS
     method init( this_method )
       this_type = this_method.type_context
+
+    method find_local( name:String )->BossLocal?
+      forEach (v in locals)
+        if (v.name == name) return v
+      endForEach
+      return null
 endClass
