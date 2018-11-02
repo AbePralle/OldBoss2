@@ -10,14 +10,27 @@ class BossConsole
   METHODS
     method init
       if (System.command_line_arguments.count)
-        execute( System.command_line_arguments.join(" ") )
+        local literals = String[]
+        local any_files = false
+        forEach (arg in System.command_line_arguments)
+          if (File.exists(arg))
+            vm.parse( arg )
+            any_files = true
+          else
+            literals.add( arg )
+          endIf
+        endForEach
+        if (literals.count) vm.parse( "[Console]", literals.join(" ") )
+        execute
       else
         repl
       endIf
 
     method execute( cmd:String )
       vm.parse( "[Console]", cmd )
+      execute
 
+    method execute
       try
         local result = vm.execute
         if (result.exists)

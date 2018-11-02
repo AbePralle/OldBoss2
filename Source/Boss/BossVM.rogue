@@ -9,19 +9,21 @@ class BossVM
     stack = BossValue[]
     fp    : Int32
 
-    string_to_id_map = StringTable<<Int32>>()
-    global_vars      = LookupList<<BossValue>>()
+    id_table     = LookupList<<Int32>>()
+    global_vars  = LookupList<<BossValue>>()
 
-    parser      = BossParser( this )
+    parser       = BossParser( this )
 
-    internal_t  : Token
-    last_error  : BossError
+    internal_t   : Token
+    last_error   : BossError
 
-    is_resolved : Logical
-    types       = LookupList<<BossType>>()
+    is_resolved  : Logical
+    types        = LookupList<<BossType>>()
 
+    type_Object  : BossType
     type_Global  : BossType
-    index_Global : Int32
+
+    id_init      : Int32
 
     global_statements = CmdStatements()
     m_on_execute      : BossMethod
@@ -34,10 +36,29 @@ class BossVM
   METHODS
     method init
       internal_t   = Token( TokenType.EOI, "[BossVM]", 0, 0 )
+
+      type_Object  = get_type( "Object" )
       type_Global  = get_type( "Global" )
-      index_Global = global_vars.count
+
+      type_Global._singleton = BossObject( type_Global )
+
       global_vars//Global = BossValue( BossObject(type_Global) )
       clear_global_statements
+
+      id_init = id( "init" )
+
+    method call( m_id:Int32, argc:Int32 )->BossValue
+      local new_fp = stack.count - (argc+1)
+      local context = stack[ new_fp ]
+      local context_type : BossType
+      if (context.type == BossValue.TYPE_OBJECT)
+        local obj = context.object as BossObject
+        if (not obj) return UndefinedBossValue
+        context_type = obj.type
+        return UndefinedBossValue
+      else
+        return UndefinedBossValue
+      endIf
 
     method clear_global_statements
       m_on_execute = type_Global.get_method( "on_execute" )
@@ -52,7 +73,7 @@ class BossVM
         endIf
 
         stack.clear
-        push( global_vars[index_Global] )
+        push( BossValue(type_Global._singleton) )
         m_on_execute.call( 0 )
         clear_global_statements
         return pop
@@ -77,7 +98,7 @@ class BossVM
           result.attributes = attributes
         endIf
       else
-        result = BossType( this, t, name, attributes )
+        result = BossType( this, t, name, types.count, attributes )
         types[ name ] = result
       endIf
       return result
@@ -85,8 +106,20 @@ class BossVM
     method get_type( name:String, attributes=0:Int32 )->BossType
       return get_type( internal_t, name, attributes )
 
+    method id( st:String )->Int32
+      local index = id_table.locate( st )
+      if (index.exists) return index.value
+
+      local result = id_table.count
+      id_table[ st ] = result
+      return result
+
+    method parse( filepath:String )->Logical
+      return parse( filepath, File.load_as_string(filepath) )
+
     method parse( filepath:String, source:String )->Logical
       is_resolved = false
+      type_Global.is_resolved = false
 
       this_method = m_on_execute
       this_type = this_method.type_context
@@ -114,12 +147,5 @@ class BossVM
       if (not stack.count) throw BossError( "BossVM.pop() on empty stack." )
       return stack.remove_last
 
-    method string_to_id( st:String )->Int32
-      local entry = string_to_id_map.find( st )
-      if (entry) return entry.value
-
-      local result = string_to_id_map.count
-      string_to_id_map[ st ] = result
-      return result
 endClass
 

@@ -3,15 +3,21 @@ module Boss
 
 class BossType
   PROPERTIES
-    vm         : BossVM
-    t          : Token
-    name       : String
-    attributes : Int32
+    vm          : BossVM
+    t           : Token
+    name        : String
+    index       : Int32
+    attributes  : Int32
 
-    methods    = LookupList<<BossMethod>>()
+    _singleton  : BossObject
+
+    methods     = LookupList<<BossMethod>>()
+    properties  = LookupList<<BossProperty>>()
+
+    is_resolved : Logical
 
   METHODS
-    method init( vm, t, name, attributes=0 )
+    method init( vm, t, name, index, attributes=0 )
 
     method get_method( name:String )->BossMethod
       return get_method( t, name )
@@ -24,5 +30,8 @@ class BossType
       return result
 
     method resolve
+      if (is_resolved) return
+      is_resolved = true
+
       (forEach in methods).resolve
 endClass

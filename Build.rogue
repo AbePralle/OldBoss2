@@ -23,7 +23,7 @@ endRoutine
 
 routine rogo_test
   rogo_build
-  execute "boss 3+4"
+  execute "boss Test.boss"
 endRoutine
 
 routine rogo_clean

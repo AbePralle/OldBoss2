@@ -36,10 +36,9 @@ endAugment
 
 augment CmdArgs
   METHODS
-    method resolved( vm:BossVM )->Cmd
-      forEach (arg at index in args)
-        args[ index ] = arg.resolved
-        # TODO: require_value
+    method resolve( vm:BossVM )
+      forEach (arg at index in this)
+        this[ index ] = arg.resolved( vm )
       endForEach
 endAugment
 
@@ -212,6 +211,8 @@ class CmdAccess( t, name:String ) : Cmd
         return CmdReadLocal( t, name, v.value.index ).resolved( vm )
       elseIf (vm.global_vars.contains(name))
         return CmdReadGlobal( t, name, vm.global_vars.index(name) ).resolved( vm )
+      elseIf (vm.types.contains(name))
+        return CmdCreateObject( t, vm.types[name], CmdArgs() ).resolved( vm )
       else
         throw t.error( 'No such method or variable: "$".' (name) )
       endIf
@@ -302,6 +303,23 @@ class CmdLocal( t, name:String, initial_value:Cmd, index=-1:Int32 ) : Cmd
         endIf
       endIf
       vm.locals.add( vm.this_method.locals[index-1] )
+      return this
+endClass
+
+class CmdCreateObject( t, type:BossType, args:CmdArgs ) : Cmd
+  METHODS
+    method execute( vm:BossVM )->BossValue
+      local result = BossValue( BossObject(type) )
+      if (args.count)
+        vm.push( result )
+        forEach (arg in args) vm.push( arg.execute(vm) )
+        vm.call( vm.id_init, args.count )
+      endIf
+      return result
+
+    method resolved( vm:BossVM )->Cmd
+      type.resolve
+      args.resolve( vm )
       return this
 endClass
 

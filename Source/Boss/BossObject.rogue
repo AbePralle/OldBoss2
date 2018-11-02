@@ -3,8 +3,9 @@ module Boss
 class BossObject : CustomBossValue
   PROPERTIES
     type       : BossType
-    properties = LookupList<<BossValue>>()
+    properties : BossValue[]
 
   METHODS
     method init( type )
+      properties = BossValue[]( type.properties.count, UndefinedBossValue )
 endClass
