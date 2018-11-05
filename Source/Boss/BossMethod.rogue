@@ -53,14 +53,18 @@ class BossMethod
       vm.fp = old_fp
 
     method execute->BossValue
-      local vm = type_context.vm
+      try
+        local vm = type_context.vm
 
-      local result = UndefinedBossValue
-      forEach (statement in statements)
-        result = statement.execute( vm )
-      endForEach
+        local result = UndefinedBossValue
+        forEach (statement in statements)
+          result = statement.execute( vm )
+        endForEach
 
-      return result
+        return result
+      catch (result:BossReturn)
+        return result.value
+      endTry
 
     method resolve
       local vm = type_context.vm

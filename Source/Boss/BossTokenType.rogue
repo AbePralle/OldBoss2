@@ -9,13 +9,14 @@ uses ParseKit<<Boss>>
 #------------------------------------------------------------------------------
 augment TokenType
   EOI( "eoi", "[end of input]", &is_structural )
-  EOL( "\n",  "[end of line]" )
+  EOL( "\n",  "[end of line]", &is_symbol )
   INTEGER( "integer" )
   IDENTIFIER( "identifier" )
   STRING( "string" )
 
   KEYWORD_CLASS       ( "class",      &is_keyword, &is_structural )
   KEYWORD_END_CLASS   ( "endClass",   &is_keyword, &is_structural )
+  KEYWORD_END_WHILE   ( "endWhile",   &is_keyword, &is_structural )
   KEYWORD_FALSE       ( "false",      &is_keyword )
   KEYWORD_GLOBAL      ( "global",     &is_keyword )
   KEYWORD_LOCAL       ( "local",      &is_keyword )
@@ -25,6 +26,7 @@ augment TokenType
   KEYWORD_PROPERTIES  ( "PROPERTIES", &is_keyword, &is_structural )
   KEYWORD_RETURN      ( "return",     &is_keyword )
   KEYWORD_TRUE        ( "true",       &is_keyword )
+  KEYWORD_WHILE       ( "while",      &is_keyword )
 
   SYMBOL_AMPERSAND    ( "&",   &is_symbol )
   SYMBOL_ASTERISK     ( "*",   &is_symbol )
@@ -35,8 +37,14 @@ augment TokenType
   SYMBOL_COMMA        ( ",",   &is_symbol )
   SYMBOL_DOLLAR       ( "$",   &is_symbol )
   SYMBOL_EQUALS       ( "=",   &is_symbol )
+  SYMBOL_EQ           ( "==",  &is_symbol )
+  SYMBOL_GE           ( ">=",  &is_symbol )
+  SYMBOL_GT           ( ">",   &is_symbol )
   SYMBOL_LEFT_SHIFT   ( "<<",  &is_symbol )
+  SYMBOL_LE           ( "<=",  &is_symbol )
+  SYMBOL_LT           ( "<",   &is_symbol )
   SYMBOL_MINUS        ( "-",   &is_symbol )
+  SYMBOL_NE           ( "!=",  &is_symbol )
   SYMBOL_OPEN_PAREN   ( "(",   &is_symbol )
   SYMBOL_PERCENT      ( "%",   &is_symbol )
   SYMBOL_PERIOD       ( ".",   &is_symbol )

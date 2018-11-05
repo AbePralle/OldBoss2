@@ -28,13 +28,13 @@ class BossConsole
         repl
       endIf
 
-    method execute( cmd:String )
-      if (vm.parse("[Console]",cmd)) execute
+    method execute( cmd:String, &show_result )
+      if (vm.parse("[Console]",cmd)) execute( &=show_result )
 
-    method execute
+    method execute( &show_result )
       try
         local result = vm.execute
-        if (result.exists)
+        if (show_result and result.exists)
           println result
         endIf
       catch (err:BossError)
@@ -43,6 +43,6 @@ class BossConsole
 
     method repl
       loop
-        execute( Console.input("Boss> ") )
+        execute( Console.input("Boss> "), &show_result )
       endLoop
 endClass

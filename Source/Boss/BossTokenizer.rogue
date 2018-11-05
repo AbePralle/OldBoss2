@@ -22,6 +22,11 @@ endAugment
 #==============================================================================
 class BossTokenizer : Tokenizer
   METHODS
+    method consume_whitespace->Logical
+      local found_any = false
+      while (consume_spaces) found_any = true
+      return found_any
+
     method on_comment( text:String )
       noAction
 
@@ -46,6 +51,7 @@ class BossTokenizer : Tokenizer
 
     method on_string( value:String )
       tokens.add( Token(TokenType.STRING,value) )
+
 endClass
 
 

@@ -127,6 +127,36 @@ class CmdPower : CmdBinaryOp<<^>>
   METHODS
 endClass
 
+class CmdCompareEQ : CmdBinaryOp<< == >>
+endClass
+
+class CmdCompareNE : CmdBinaryOp<< != >>
+endClass
+
+class CmdCompareLE : CmdBinaryOp<< <= >>
+endClass
+
+class CmdCompareLT : CmdBinary
+  METHODS
+    method execute( vm:BossVM )->BossValue
+      return left.execute( vm ) < right.execute( vm )
+
+    method op->String
+      return "<"
+endClass
+
+class CmdCompareGE : CmdBinaryOp<< >= >>
+endClass
+
+class CmdCompareGT : CmdBinary
+  METHODS
+    method execute( vm:BossVM )->BossValue
+      return left.execute( vm ) > right.execute( vm )
+
+    method op->String
+      return ">"
+endClass
+
 class CmdBitwiseXor : CmdBinary
   METHODS
     method execute( vm:BossVM )->BossValue
@@ -465,13 +495,13 @@ endClass
 class CmdReturnUndefined( t ) : Cmd
   METHODS
     method execute( vm:BossVM )->BossValue
-      return UndefinedBossValue
+      throw BossReturn( UndefinedBossValue )
 endClass
 
 class CmdReturnValue( t, result:Cmd ) : Cmd
   METHODS
     method execute( vm:BossVM )->BossValue
-      return result.execute( vm )
+      throw BossReturn( result.execute(vm) )
 
     method resolved( vm:BossVM )->Cmd
       result = result.resolved( vm )
@@ -487,6 +517,7 @@ class CmdLiteralString( t, value:String ) : Cmd
       return this
 endClass
 
+
 class CmdPrintln( t, args:CmdArgs ) : Cmd
   METHODS
     method execute( vm:BossVM )->BossValue
@@ -500,4 +531,27 @@ class CmdPrintln( t, args:CmdArgs ) : Cmd
       if (args) args.resolve( vm )
       return this
 endClass
+
+
+class CmdControlStructure( t ) : Cmd
+  PROPERTIES
+    statements = CmdStatements()
+endClass
+
+
+class CmdWhile( t, condition:Cmd ) : CmdControlStructure
+  METHODS
+    method execute( vm:BossVM )->BossValue
+      local result = UndefinedBossValue
+      while (condition.execute(vm)->Logical)
+        result = statements.execute( vm )
+      endWhile
+      return result
+
+    method resolved( vm:BossVM )->Cmd
+      condition = condition.resolved( vm )
+      statements.resolve( vm )
+      return this
+endClass
+
 

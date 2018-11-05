@@ -13,6 +13,14 @@ class BossParser : Parser
     method init( vm )
       local rule = add( ParseRule("expression" ) )
 
+      rule = add_nested( BinaryParseRule("compare") )
+      rule.on( "==",  <<CmdCompareEQ>> )
+      rule.on( "!=",  <<CmdCompareNE>> )
+      rule.on( "<=",  <<CmdCompareLE>> )
+      rule.on( "<",   <<CmdCompareLT>> )
+      rule.on( ">=",  <<CmdCompareGE>> )
+      rule.on( ">",   <<CmdCompareGT>> )
+
       # <<, >>, >>>
       rule = add_nested( BinaryParseRule("bit_shift") )
       rule.on( "<<",  <<CmdLeftShift>> )
@@ -221,6 +229,18 @@ class BossParser : Parser
         if (consume(TokenType.KEYWORD_RETURN))
           if (next_is_end_command) statements.add( CmdReturnUndefined(t) )
           else                     statements.add( CmdReturnValue(t, parse_expression()) )
+          return
+        endIf
+
+        if (consume(TokenType.KEYWORD_WHILE))
+          local cmd_while = CmdWhile( t, parse_expression() )
+          statements.add( cmd_while )
+          if (next_is_end_command)
+            parse_multi_line_statements( cmd_while.statements )
+            must_consume( TokenType.KEYWORD_END_WHILE )
+          else
+            parse_single_line_statements( cmd_while.statements )
+          endIf
           return
         endIf
       endIf
