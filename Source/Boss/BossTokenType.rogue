@@ -12,6 +12,7 @@ augment TokenType
   EOL( "\n",  "[end of line]" )
   INTEGER( "integer" )
   IDENTIFIER( "identifier" )
+  STRING( "string" )
 
   KEYWORD_CLASS       ( "class",      &is_keyword, &is_structural )
   KEYWORD_END_CLASS   ( "endClass",   &is_keyword, &is_structural )
@@ -20,6 +21,7 @@ augment TokenType
   KEYWORD_LOCAL       ( "local",      &is_keyword )
   KEYWORD_METHOD      ( "method",     &is_keyword, &is_structural )
   KEYWORD_METHODS     ( "METHODS",    &is_keyword, &is_structural )
+  KEYWORD_PRINTLN     ( "println",    &is_keyword )
   KEYWORD_PROPERTIES  ( "PROPERTIES", &is_keyword, &is_structural )
   KEYWORD_RETURN      ( "return",     &is_keyword )
   KEYWORD_TRUE        ( "true",       &is_keyword )

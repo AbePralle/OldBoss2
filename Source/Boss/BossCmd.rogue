@@ -478,3 +478,26 @@ class CmdReturnValue( t, result:Cmd ) : Cmd
       return this
 endClass
 
+class CmdLiteralString( t, value:String ) : Cmd
+  METHODS
+    method execute( vm:BossVM )->BossValue
+      return value
+
+    method resolved( vm:BossVM )->Cmd
+      return this
+endClass
+
+class CmdPrintln( t, args:CmdArgs ) : Cmd
+  METHODS
+    method execute( vm:BossVM )->BossValue
+      if (args)
+        forEach (arg in args) print arg.execute( vm )
+      endIf
+      println
+      return UndefinedBossValue
+
+    method resolved( vm:BossVM )->Cmd
+      if (args) args.resolve( vm )
+      return this
+endClass
+

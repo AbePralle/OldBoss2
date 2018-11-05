@@ -82,6 +82,12 @@ class BossParser : Parser
           return CmdAccess( t, t->String, parser.parse_args )
         endFunction
       )
+      rule.on( "string",
+        function (parser:BossParser )->Cmd
+          local t = parser.read
+          return CmdLiteralString( t, t->String )
+        endFunction
+      )
       rule.on_default( (parser) => throw parser.peek.error( "Syntax error: unexpected $." (parser.peek.description) ) )
 
     method consume_end_commands->Logical
@@ -101,10 +107,12 @@ class BossParser : Parser
       local args = parse_args
       return CmdAccess( t, context, name, args )
 
-    method parse_args->CmdArgs
-      if (not consume(TokenType.SYMBOL_OPEN_PAREN)) return null
+    method parse_args( &allow_no_parens )->CmdArgs
+      local has_open_paren = consume( TokenType.SYMBOL_OPEN_PAREN )
+      if (not has_open_paren and not allow_no_parens) return null
+
       local args = CmdArgs()
-      if (consume(TokenType.SYMBOL_CLOSE_PAREN))    return args
+      if (has_open_paren and consume(TokenType.SYMBOL_CLOSE_PAREN)) return args
 
       consume_eols
       local first = true
@@ -115,7 +123,7 @@ class BossParser : Parser
         consume_eols
       endWhile
 
-      must_consume( TokenType.SYMBOL_CLOSE_PAREN )
+      if (has_open_paren) must_consume( TokenType.SYMBOL_CLOSE_PAREN )
       return args
 
     method parse_component->Logical
@@ -222,6 +230,11 @@ class BossParser : Parser
         local expr : Cmd
         if (consume(TokenType.SYMBOL_EQUALS)) expr = parse_expression()
         statements.add( CmdLocal(t,name,expr) )
+        return
+      endIf
+
+      if (consume(TokenType.KEYWORD_PRINTLN))
+        statements.add( CmdPrintln(t,parse_args(&allow_no_parens)) )
         return
       endIf
 
