@@ -121,13 +121,15 @@ class BossVM
       is_resolved = false
       type_Global.is_resolved = false
 
-      this_method = m_on_execute
-      this_type = this_method.type_context
-
       try
         parser.set_source( filepath, source )
         loop
+          if (parser.parse_component) nextIteration
+
+          this_method = m_on_execute
+          this_type = this_method.type_context
           if (parser.parse_multi_line_statements(global_statements)) nextIteration
+
           escapeLoop
         endLoop
         return true
@@ -146,6 +148,11 @@ class BossVM
     method pop->BossValue
       if (not stack.count) throw BossError( "BossVM.pop() on empty stack." )
       return stack.remove_last
+
+    method type_of( value:BossValue )->BossType
+      local obj = value.object as BossObject
+      if (obj) return obj.type
+      return null
 
 endClass
 

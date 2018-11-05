@@ -8,4 +8,7 @@ class BossObject : CustomBossValue
   METHODS
     method init( type )
       properties = BossValue[]( type.properties.count, UndefinedBossValue )
+
+    method to->String
+      return type.name
 endClass

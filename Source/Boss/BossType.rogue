@@ -29,6 +29,20 @@ class BossType
       methods[ name ] = result
       return result
 
+    method locate_method( method_id:Int32 )->Int32
+      # Returns -1 if not found
+      forEach (m at index in methods)
+        if (m.id == method_id) return index
+      endForEach
+      return -1
+
+    method locate_property( property_id:Int32 )->Int32
+      # Returns -1 if not found
+      forEach (p at index in properties)
+        if (p.id == property_id) return index
+      endForEach
+      return -1
+
     method resolve
       if (is_resolved) return
       is_resolved = true

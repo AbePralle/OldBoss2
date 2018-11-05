@@ -36,6 +36,9 @@ endAugment
 
 augment CmdArgs
   METHODS
+    method execute( vm:BossVM )
+      vm.push( (forEach in this).execute(vm) )
+
     method resolve( vm:BossVM )
       forEach (arg at index in this)
         this[ index ] = arg.resolved( vm )
@@ -200,35 +203,171 @@ class CmdAssign( t, left:Cmd, right:Cmd ) : Cmd
       return "$ = $" (left,right)
 endClass
 
-class CmdAccess( t, name:String ) : Cmd
+class CmdAccess( t, context:Cmd, name:String, args:CmdArgs ) : Cmd
   METHODS
     method init( t )
       name = t->String
 
+    method init( t, name, args )
+
     method resolved( vm:BossVM )->Cmd
-      local v = vm.find_local( name )
-      if (v.exists)
-        return CmdReadLocal( t, name, v.value.index ).resolved( vm )
-      elseIf (vm.global_vars.contains(name))
-        return CmdReadGlobal( t, name, vm.global_vars.index(name) ).resolved( vm )
-      elseIf (vm.types.contains(name))
-        return CmdCreateObject( t, vm.types[name], CmdArgs() ).resolved( vm )
+      if (context)
+        if (args)
+          return CmdContextCall( t, context, name, args ).resolved( vm )
+        else
+          return CmdContextRead( t, context, name ).resolved( vm )
+        endIf
+
       else
-        throw t.error( 'No such method or variable: "$".' (name) )
+        # No class or object context given
+        if (args)
+          args.resolve( vm )
+          local type = vm.types[ name ]
+          if (type)
+            return CmdCreateObject( t, type, args ).resolved( vm )
+          endIf
+          throw t.error( "No such class or method '$'." (name) )
+        else
+          local v = vm.find_local( name )
+          if (v.exists)
+            return CmdReadLocal( t, name, v.value.index ).resolved( vm )
+          elseIf (vm.global_vars.contains(name))
+            return CmdReadGlobal( t, name, vm.global_vars.index(name) ).resolved( vm )
+          endIf
+          throw t.error( "No such method or variable '$'." (name) )
+        endIf
       endIf
 
     method resolve_assignment( vm:BossVM, new_value:Cmd )->Cmd
-      local v = vm.find_local( name )
-      if (v.exists)
-        return CmdWriteLocal( t, name, v.value.index, new_value ).resolved( vm )
-      elseIf (vm.global_vars.contains(name))
-        return CmdWriteGlobal( t, name, vm.global_vars.index(name), new_value ).resolved( vm )
+      if (context)
+        return CmdContextWrite( t, context, name, new_value ).resolved( vm )
       else
-        throw t.error( 'No such method or variable: "$".' (name) )
+        local v = vm.find_local( name )
+        if (v.exists)
+          return CmdWriteLocal( t, name, v.value.index, new_value ).resolved( vm )
+        elseIf (vm.global_vars.contains(name))
+          return CmdWriteGlobal( t, name, vm.global_vars.index(name), new_value ).resolved( vm )
+        else
+          throw t.error( 'No such method or variable: "$".' (name) )
+        endIf
       endIf
 
     method to->String
       return name
+endClass
+
+class CmdContextRead( t, context:Cmd, name:String, element_id=0:Int32 ) : Cmd
+  PROPERTIES
+    cached_property_slot = -1 : Int32
+    cached_method_slot   = -1 : Int32
+
+  METHODS
+    method execute( vm:BossVM )->BossValue
+      local value = context.execute( vm )
+      local obj = value->Object as BossObject
+      local type = vm.type_of( value )
+      if (not type) return UndefinedBossValue
+
+      local slot = cached_method_slot
+      if (slot >= 0)
+        if (slot < type.methods.count)
+          local m = type.methods[slot]
+          if (m.id == element_id)
+            vm.push( value )
+            m.call( 0 )
+            return vm.pop
+          endIf
+        endIf
+      endIf
+
+      slot = cached_property_slot
+      if (obj and slot >= 0)
+        if (slot < type.properties.count and type.properties[slot].id == element_id)
+          return obj.properties[ slot ]
+        endIf
+      endIf
+
+      cached_method_slot = type.locate_method( element_id )
+      if (cached_method_slot >= 0)
+        vm.push( value )
+        type.methods[ cached_method_slot ].call( 0 )
+        return vm.pop
+      endIf
+
+      cached_property_slot = type.locate_property( element_id )
+      if (cached_property_slot >= 0) return obj.properties[ cached_property_slot ]
+
+      return UndefinedBossValue
+
+    method resolved( vm:BossVM )->Cmd
+      context = context.resolved( vm )
+      element_id = vm.id( name )
+      return this
+
+    method to->String
+      return name
+endClass
+
+class CmdContextWrite( t, context:Cmd, name:String, new_value:Cmd, element_id=0:Int32 ) : Cmd
+  METHODS
+    method resolved( vm:BossVM )->Cmd
+      context = context.resolved( vm )
+      element_id = vm.id( name )
+      new_value = new_value.resolved( vm )
+      return this
+
+    method to->String
+      return name
+endClass
+
+class CmdContextCall( t, context:Cmd, name:String, args:CmdArgs, method_id=0:Int32 ) : Cmd
+  PROPERTIES
+    cached_method_slot = -1
+
+  METHODS
+    method execute( vm:BossVM )->BossValue
+      local value = context.execute( vm )
+      local type = vm.type_of( value )
+
+      local slot = cached_method_slot
+      if (slot >= 0)
+        if (slot < type.methods.count)
+          local m = type.methods[slot]
+          if (m.id == method_id)
+            vm.push( value )
+            if (args.count)
+              args.execute( vm )
+              m.call( args.count )
+            else
+              m.call( 0 )
+            endIf
+            return vm.pop
+          endIf
+        endIf
+      endIf
+
+      cached_method_slot = type.locate_method( method_id )
+      if (cached_method_slot >= 0)
+        vm.push( value )
+        if (args.count)
+          args.execute( vm )
+          type.methods[ cached_method_slot ].call( args.count )
+        else
+          type.methods[ cached_method_slot ].call( 0 )
+        endIf
+        return vm.pop
+      endIf
+
+      return UndefinedBossValue
+
+    method resolved( vm:BossVM )->Cmd
+      context = context.resolved( vm )
+      args.resolve( vm )
+      method_id = vm.id( name )
+      return this
+
+    method to->String
+      return "$.$$" (context,name,args)
 endClass
 
 class CmdReadGlobal( t, name:String, index:Int32 ) : Cmd
@@ -320,6 +459,22 @@ class CmdCreateObject( t, type:BossType, args:CmdArgs ) : Cmd
     method resolved( vm:BossVM )->Cmd
       type.resolve
       args.resolve( vm )
+      return this
+endClass
+
+class CmdReturnUndefined( t ) : Cmd
+  METHODS
+    method execute( vm:BossVM )->BossValue
+      return UndefinedBossValue
+endClass
+
+class CmdReturnValue( t, result:Cmd ) : Cmd
+  METHODS
+    method execute( vm:BossVM )->BossValue
+      return result.execute( vm )
+
+    method resolved( vm:BossVM )->Cmd
+      result = result.resolved( vm )
       return this
 endClass
 

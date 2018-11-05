@@ -9,14 +9,25 @@ class BossMethod
     statements   = CmdStatements()
     locals       = BossLocal[]
     param_count  : Int32
+    id           : Int32
 
   METHODS
     method init( type_context, t, name )
+      id = type_context.vm.id( name )
+
+    method reset
+      statements.clear
+      locals.clear
+      param_count = 0
 
     method add_local( t:Token, name:String, initial_value:Cmd )->Int32
       local index = locals.count + 1
       locals.add( BossLocal(t,name,initial_value,index) )
       return index
+
+    method add_param( t:Token, name:String, initial_value:Cmd )->Int32
+      ++param_count
+      return add_local( t, name, initial_value )
 
     method call( arg_count:Int32 )
       local vm    = type_context.vm
@@ -53,8 +64,15 @@ class BossMethod
 
     method resolve
       local vm = type_context.vm
+
+      forEach (param_index in 0..<param_count)
+        vm.locals.add( locals[param_index] )
+      endForEach
+
       forEach (statement at i in statements)
         statements[i] = statement.resolved( vm )
       endForEach
+
+      loop (param_count) vm.locals.remove_last
 
 endClass

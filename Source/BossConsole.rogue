@@ -14,21 +14,22 @@ class BossConsole
         local any_files = false
         forEach (arg in System.command_line_arguments)
           if (File.exists(arg))
-            vm.parse( arg )
+            if (not vm.parse(arg)) return
             any_files = true
           else
             literals.add( arg )
           endIf
         endForEach
-        if (literals.count) vm.parse( "[Console]", literals.join(" ") )
+        if (literals.count)
+          if (not vm.parse("[Console]",literals.join(" "))) return
+        endIf
         execute
       else
         repl
       endIf
 
     method execute( cmd:String )
-      vm.parse( "[Console]", cmd )
-      execute
+      if (vm.parse("[Console]",cmd)) execute
 
     method execute
       try

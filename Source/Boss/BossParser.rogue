@@ -11,7 +11,7 @@ class BossParser : Parser
 
   METHODS
     method init( vm )
-      local rule = add_nested( ParseRule("expression" ) )
+      local rule = add( ParseRule("expression" ) )
 
       # <<, >>, >>>
       rule = add_nested( BinaryParseRule("bit_shift") )
@@ -47,10 +47,18 @@ class BossParser : Parser
       rule = add_nested( BinaryParseRule("power") )
       rule.on( "^", <<CmdPower>> )
 
-      # !
+      # -, !
       rule = add_nested( UnaryParseRule("negate") )
       rule.on( "-", <<CmdNegate>> )
       rule.on( "!", <<CmdBitwiseNot>> )
+
+      # .
+      rule = add_nested( ContextParseRule("member") )
+      rule.on( ".",
+        function( parser:BossParser, context:Cmd )->Cmd
+          return parser.parse_access( context )
+        endFunction
+      )
 
       # term
       rule = add_nested( ParseRule("term") )
@@ -68,7 +76,12 @@ class BossParser : Parser
           return result
         endFunction
       )
-      rule.on( "identifier", <<CmdAccess>> )
+      rule.on( "identifier",
+        function (parser:BossParser )->Cmd
+          local t = parser.read
+          return CmdAccess( t, t->String, parser.parse_args )
+        endFunction
+      )
       rule.on_default( (parser) => throw parser.peek.error( "Syntax error: unexpected $." (parser.peek.description) ) )
 
     method consume_end_commands->Logical
@@ -76,8 +89,88 @@ class BossParser : Parser
       while (consume_eols or consume(TokenType.SYMBOL_SEMICOLON)) consumed_any = true
       return consumed_any
 
+    method next_is_end_command->Logical
+      return next_is(TokenType.EOL) or next_is(TokenType.SYMBOL_SEMICOLON)
+
     method next_is_statement->Logical [macro]
       return (not this.peek.type.is_structural)
+
+    method parse_access( context:Cmd )->Cmd
+      local t = read
+      local name = read_identifier
+      local args = parse_args
+      return CmdAccess( t, context, name, args )
+
+    method parse_args->CmdArgs
+      if (not consume(TokenType.SYMBOL_OPEN_PAREN)) return null
+      local args = CmdArgs()
+      if (consume(TokenType.SYMBOL_CLOSE_PAREN))    return args
+
+      consume_eols
+      local first = true
+      while (first or consume(TokenType.SYMBOL_COMMA))
+        consume_eols
+        first = false
+        args.add( parse_expression() )
+        consume_eols
+      endWhile
+
+      must_consume( TokenType.SYMBOL_CLOSE_PAREN )
+      return args
+
+    method parse_component->Logical
+      consume_eols
+      if (next_is(TokenType.KEYWORD_CLASS))
+        parse_class
+        return true
+      endIf
+      return false
+
+    method parse_class
+      local t = read
+      local name = read_identifier
+      vm.this_type = vm.get_type( t, name )
+      while (parse_category) noAction
+      must_consume( TokenType.KEYWORD_END_CLASS )
+
+    method parse_category->Logical
+      consume_eols
+      if (consume(TokenType.KEYWORD_METHODS))
+        consume_eols
+        while (parse_method) noAction
+        return true
+      endIf
+      return false
+
+    method parse_method->Logical
+      local t = peek
+      if (not consume(TokenType.KEYWORD_METHOD)) return false
+      local name = read_identifier
+      local m = vm.this_type.get_method( t, name )
+      m.reset
+      if (consume(TokenType.SYMBOL_OPEN_PAREN))
+        if (not next_is(TokenType.SYMBOL_CLOSE_PAREN))
+          consume_eols
+          local first = true
+          while (first or consume(TokenType.SYMBOL_COMMA))
+            first = false
+            consume_eols
+            local param_t = peek
+            local param_name = read_identifier
+            local initial_value : Cmd
+            if (consume(TokenType.SYMBOL_EQUALS))
+              initial_value = parse_expression()
+            endIf
+            m.add_param( param_t, param_name, initial_value )
+            consume_eols
+          endWhile
+        endIf
+        must_consume( TokenType.SYMBOL_CLOSE_PAREN )
+      endIf
+      consume( TokenType.SYMBOL_COLON )   # optional
+      vm.this_method = m
+      parse_multi_line_statements( m.statements )
+      return true
 
     method parse_statements( statements:CmdStatements, end_type:TokenType )
       if (consume_eols)
@@ -115,6 +208,14 @@ class BossParser : Parser
 
     method parse_statement( statements:CmdStatements, &allow_control_structures )
       local t = peek
+
+      if (allow_control_structures)
+        if (consume(TokenType.KEYWORD_RETURN))
+          if (next_is_end_command) statements.add( CmdReturnUndefined(t) )
+          else                     statements.add( CmdReturnValue(t, parse_expression()) )
+          return
+        endIf
+      endIf
 
       if (consume(TokenType.KEYWORD_LOCAL))
         local name = read_identifier
