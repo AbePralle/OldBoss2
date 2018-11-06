@@ -244,12 +244,6 @@ class BossParser : Parser
       local t = peek
 
       if (allow_control_structures)
-        if (consume(TokenType.KEYWORD_RETURN))
-          if (next_is_end_command) statements.add( CmdReturnUndefined(t) )
-          else                     statements.add( CmdReturnValue(t, parse_expression()) )
-          return
-        endIf
-
         if (consume(TokenType.KEYWORD_IF))
           statements.add( parse_if(t) )
           return
@@ -266,6 +260,12 @@ class BossParser : Parser
           endIf
           return
         endIf
+      endIf
+
+      if (consume(TokenType.KEYWORD_RETURN))
+        if (next_is_end_command) statements.add( CmdReturnUndefined(t) )
+        else                     statements.add( CmdReturnValue(t, parse_expression()) )
+        return
       endIf
 
       if (consume(TokenType.KEYWORD_LOCAL))
