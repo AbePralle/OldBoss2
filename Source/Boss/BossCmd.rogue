@@ -21,6 +21,11 @@ endAugment
 
 augment CmdStatements
   METHODS
+    method init
+
+    method init( cmd:Cmd )
+      add( cmd )
+
     method execute( vm:BossVM )->BossValue
       local result = UndefinedBossValue
       result = (forEach in this).execute( vm )
@@ -535,11 +540,39 @@ endClass
 
 class CmdControlStructure( t ) : Cmd
   PROPERTIES
-    statements = CmdStatements()
+    statements : CmdStatements
+
 endClass
 
 
-class CmdWhile( t, condition:Cmd ) : CmdControlStructure
+class CmdIf( t, condition:Cmd, statements ) : CmdControlStructure
+  METHODS
+    method execute( vm:BossVM )->BossValue
+      if (condition.execute(vm)->Logical) return statements.execute( vm )
+      return UndefinedBossValue
+
+    method resolved( vm:BossVM )->Cmd
+      condition = condition.resolved( vm )
+      statements.resolve( vm )
+      return this
+endClass
+
+
+class CmdIfElse( t, condition:Cmd, statements, else_statements:CmdStatements ) : CmdControlStructure
+  METHODS
+    method execute( vm:BossVM )->BossValue
+      if (condition.execute(vm)->Logical) return statements.execute( vm )
+      else                                return else_statements.execute( vm )
+
+    method resolved( vm:BossVM )->Cmd
+      condition = condition.resolved( vm )
+      statements.resolve( vm )
+      else_statements.resolve( vm )
+      return this
+endClass
+
+
+class CmdWhile( t, condition:Cmd, statements=CmdStatements() ) : CmdControlStructure
   METHODS
     method execute( vm:BossVM )->BossValue
       local result = UndefinedBossValue
