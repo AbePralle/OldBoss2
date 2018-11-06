@@ -15,6 +15,14 @@ augment Cmd
     method resolved( vm:BossVM )->Cmd
       return this
 
+    method resolve_context_access( vm:BossVM, name:String, args:CmdArgs )->Cmd
+      # Note this Cmd is already resolved() before resolve_context_access() is called on it
+      if (args)
+        return CmdContextCall( t, this, name, args ).resolved( vm )
+      else
+        return CmdContextRead( t, this, name ).resolved( vm )
+      endIf
+
     method resolve_assignment( vm:BossVM, new_value:Cmd )->Cmd
       throw t.error( "Illegal assignment" )
 endAugment
@@ -92,6 +100,12 @@ class CmdLiteralUndefined( t ) : Cmd
       return UndefinedBossValue
 endClass
 
+class CmdLiteralNull( t ) : Cmd
+  METHODS
+    method execute( vm:BossVM )->BossValue
+      return NullBossValue
+endClass
+
 class CmdLiteralInt32( t, value:Int32 ) : Cmd
   METHODS
     method execute( vm:BossVM )->BossValue
@@ -102,6 +116,15 @@ class CmdLiteralInt32( t, value:Int32 ) : Cmd
 
     method to->String
       return value
+endClass
+
+class CmdLiteralString( t, value:String ) : Cmd
+  METHODS
+    method execute( vm:BossVM )->BossValue
+      return value
+
+    method resolved( vm:BossVM )->Cmd
+      return this
 endClass
 
 class CmdAdd : CmdBinaryOp<<+>>
@@ -247,11 +270,7 @@ class CmdAccess( t, context:Cmd, name:String, args:CmdArgs ) : Cmd
 
     method resolved( vm:BossVM )->Cmd
       if (context)
-        if (args)
-          return CmdContextCall( t, context, name, args ).resolved( vm )
-        else
-          return CmdContextRead( t, context, name ).resolved( vm )
-        endIf
+        return context.resolved( vm ).resolve_context_access( vm, name, args )
 
       else
         # No class or object context given
@@ -316,7 +335,7 @@ class CmdContextRead( t, context:Cmd, name:String, element_id=0:Int32 ) : Cmd
       endIf
 
       slot = cached_property_slot
-      if (obj and slot >= 0)
+      if (slot >= 0)
         if (slot < type.properties.count and type.properties[slot].id == element_id)
           return obj.properties[ slot ]
         endIf
@@ -344,7 +363,54 @@ class CmdContextRead( t, context:Cmd, name:String, element_id=0:Int32 ) : Cmd
 endClass
 
 class CmdContextWrite( t, context:Cmd, name:String, new_value:Cmd, element_id=0:Int32 ) : Cmd
+  PROPERTIES
+    cached_method_slot   = -1 : Int32
+    cached_property_slot = -1 : Int32
+
   METHODS
+    method execute( vm:BossVM )->BossValue
+      local new_value = this.new_value.execute( vm )
+      local context_value = context.execute( vm )
+      local obj = context_value->Object as BossObject
+      local type = vm.type_of( context_value )
+      if (not type) return UndefinedBossValue
+
+      local slot = cached_method_slot
+      if (slot >= 0)
+        if (slot < type.methods.count)
+          local m = type.methods[slot]
+          if (m.id == element_id)
+            vm.push( context_value )
+            vm.push( new_value )
+            m.call( 1 )
+            return vm.pop
+          endIf
+        endIf
+      endIf
+
+      slot = cached_property_slot
+      if (slot >= 0)
+        if (slot < type.properties.count and type.properties[slot].id == element_id)
+          obj.properties[ slot ] = new_value
+          return UndefinedBossValue
+        endIf
+      endIf
+
+      cached_method_slot = type.locate_method( element_id )
+      if (cached_method_slot >= 0)
+        vm.push( context_value )
+        vm.push( new_value )
+        type.methods[ cached_method_slot ].call( 1 )
+        return vm.pop
+      endIf
+
+      cached_property_slot = type.locate_property( element_id )
+      if (cached_property_slot >= 0)
+        obj.properties[ cached_property_slot ] = new_value
+      endIf
+
+      return UndefinedBossValue
+
     method resolved( vm:BossVM )->Cmd
       context = context.resolved( vm )
       element_id = vm.id( name )
@@ -513,15 +579,6 @@ class CmdReturnValue( t, result:Cmd ) : Cmd
       return this
 endClass
 
-class CmdLiteralString( t, value:String ) : Cmd
-  METHODS
-    method execute( vm:BossVM )->BossValue
-      return value
-
-    method resolved( vm:BossVM )->Cmd
-      return this
-endClass
-
 
 class CmdPrintln( t, args:CmdArgs ) : Cmd
   METHODS
@@ -587,4 +644,16 @@ class CmdWhile( t, condition:Cmd, statements=CmdStatements() ) : CmdControlStruc
       return this
 endClass
 
+class CmdThis : Cmd
+  METHODS
+    method execute( vm:BossVM )->BossValue
+      return vm.stack[ vm.fp ]
+endClass
 
+#{
+class CmdThisCall
+  METHODS
+    method execute( vm:BossVM )->BossValue
+      return "argc:$" (vm.
+endClass
+}#

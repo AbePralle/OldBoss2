@@ -96,12 +96,18 @@ class BossParser : Parser
           return CmdLiteralString( t, t->String )
         endFunction
       )
+      rule.on( "null",      <<CmdLiteralNull>> )
+      rule.on( "undefined", <<CmdLiteralUndefined>> )
       rule.on_default( (parser) => throw parser.peek.error( "Syntax error: unexpected $." (parser.peek.description) ) )
 
     method consume_end_commands->Logical
       local consumed_any = false
       while (consume_eols or consume(TokenType.SYMBOL_SEMICOLON)) consumed_any = true
       return consumed_any
+
+    method must_consume_eols
+      must_consume( TokenType.EOL )
+      while (consume(TokenType.EOL)) noAction
 
     method next_is_end_command->Logical
       return next_is(TokenType.EOL) or next_is(TokenType.SYMBOL_SEMICOLON)
@@ -232,6 +238,9 @@ class BossParser : Parser
         parse_statement( statements, &!allow_control_structures )
         if (not consume(TokenType.SYMBOL_SEMICOLON)) return
         while (consume(TokenType.SYMBOL_SEMICOLON)) noAction
+
+        # Don't let a trailing ';' act as a next-line continuation.
+        if (next_is_end_command) escapeWhile
       endWhile
 
       if (not consume(TokenType.EOL))
@@ -257,6 +266,7 @@ class BossParser : Parser
             must_consume( TokenType.KEYWORD_END_WHILE )
           else
             parse_single_line_statements( cmd_while.statements )
+            must_consume_eols
           endIf
           return
         endIf
@@ -321,6 +331,7 @@ class BossParser : Parser
       else
         local statements = CmdStatements()
         parse_single_line_statements( statements )
+        must_consume_eols
 
         if (next_is_single_line_elseIf_or_else)
           local nested_t = peek
@@ -330,6 +341,7 @@ class BossParser : Parser
             must_consume( TokenType.KEYWORD_ELSE )
             local else_statements = CmdStatements()
             parse_single_line_statements( else_statements )
+            must_consume_eols
             return CmdIfElse( t, condition, statements, else_statements )
           endIf
 
