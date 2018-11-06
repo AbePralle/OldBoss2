@@ -90,6 +90,9 @@ class BossVM
       endForEach
       return null
 
+    method get( name:String )->BossValue [macro]
+      return this.global_vars[ name ]
+
     method get_type( t:Token, name:String, attributes=0:Int32 )->BossType
       local result = types[ name ]
       if (result)
@@ -148,6 +151,9 @@ class BossVM
     method pop->BossValue
       if (not stack.count) throw BossError( "BossVM.pop() on empty stack." )
       return stack.remove_last
+
+    method set( name:String, new_value:BossValue ) [macro]
+      this.global_vars[ name ] = new_value
 
     method type_of( value:BossValue )->BossType
       local obj = value.object as BossObject
