@@ -57,9 +57,7 @@ class BossMethod
         local vm = type_context.vm
 
         local result = UndefinedBossValue
-        forEach (statement in statements)
-          result = statement.execute( vm )
-        endForEach
+        statements.execute( vm )
 
         return result
       catch (result:BossReturn)
@@ -73,9 +71,7 @@ class BossMethod
         vm.locals.add( locals[param_index] )
       endForEach
 
-      forEach (statement at i in statements)
-        statements[i] = statement.resolved( vm )
-      endForEach
+      statements.resolve( vm )
 
       loop (param_count) vm.locals.remove_last
 

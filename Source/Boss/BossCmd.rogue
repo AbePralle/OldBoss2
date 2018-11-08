@@ -25,6 +25,12 @@ augment Cmd
 
     method resolve_assignment( vm:BossVM, new_value:Cmd )->Cmd
       throw t.error( "Illegal assignment" )
+
+    method resolve_pre_step( vm:BossVM, delta:Int32 )->Cmd
+      throw t.error( "Illegal operand for $." (select(delta){-1:"--"||"++"}) )
+
+    method resolve_post_step( vm:BossVM, delta:Int32 )->Cmd
+      throw t.error( "Illegal operand for $." (select(delta){-1:"--"||"++"}) )
 endAugment
 
 augment CmdStatements
@@ -36,14 +42,15 @@ augment CmdStatements
 
     method execute( vm:BossVM )->BossValue
       local result = UndefinedBossValue
-      result = (forEach in this).execute( vm )
+      forEach (statement in this)
+        result = statement.execute( vm )
+      endForEach
       return result
 
     method resolve( vm:BossVM )
       forEach (statement at index in this)
         this[ index ] = statement.resolved( vm )
       endForEach
-
       (forEach in this).exit_scope( vm )
 endAugment
 
@@ -241,15 +248,56 @@ endClass
 
 class CmdNegate : BossCmdUnary<<->>
   METHODS
+    method execute( vm:BossVM )->BossValue
+      return -operand.execute( vm )->Real64
+
+    method op->String
+      return "-"
+endClass
+
+class CmdPreIncrement : CmdUnary
+  METHODS
+    method op->String
+      return "++"
+
+    method resolved( vm:BossVM )->Cmd
+      return operand.resolve_pre_step( vm, 1 )
+endClass
+
+class CmdPreDecrement : CmdUnary
+  METHODS
+    method op->String
+      return "--"
+
+    method resolved( vm:BossVM )->Cmd
+      return operand.resolve_pre_step( vm, -1 )
+endClass
+
+class CmdPostIncrement : CmdUnary
+  METHODS
+    method op->String
+      return "++"
+
+    method resolved( vm:BossVM )->Cmd
+      return operand.resolve_post_step( vm, 1 )
+endClass
+
+class CmdPostDecrement : CmdUnary
+  METHODS
+    method op->String
+      return "--"
+
+    method resolved( vm:BossVM )->Cmd
+      return operand.resolve_post_step( vm, -1 )
 endClass
 
 class CmdBitwiseNot : CmdUnary
   METHODS
     method execute( vm:BossVM )->BossValue
-      return -operand.execute( vm )->Int64
+      return !operand.execute( vm )->Int64
 
     method op->String
-      return "-"
+      return "!"
 endClass
 
 class CmdAssign( t, left:Cmd, right:Cmd ) : Cmd
@@ -268,6 +316,37 @@ class CmdAccess( t, context:Cmd, name:String, args:CmdArgs ) : Cmd
 
     method init( t, name, args )
 
+    method resolve_pre_step( vm:BossVM, delta:Int32 )->Cmd
+      if (context)
+        if (args is null) return CmdContextAddLiteralAndAssign( t, this, name, delta ).resolved( vm )
+      else
+        local v = vm.find_local( name )
+        if (v.exists)
+          return CmdLocalAddLiteralAndAssign( t, name, v.value.index, delta ).resolved( vm )
+        endIf
+        local p = vm.this_type.find_property( name )
+        if (p)
+          return CmdThisPropertyAddLiteralAndAssign( t, p.index, delta ).resolved( vm )
+        endIf
+      endIf
+      return prior.resolve_pre_step( vm, delta )  # generate error
+
+    method resolve_post_step( vm:BossVM, delta:Int32 )->Cmd
+      if (context)
+        if (args is null) return CmdContextPostIncrement( t, this, name, delta ).resolved( vm )
+      else
+        local v = vm.find_local( name )
+        if (v.exists)
+          return CmdLocalPostIncrement( t, name, v.value.index, delta ).resolved( vm )
+        endIf
+        local p = vm.this_type.find_property( name )
+        if (p)
+          return CmdThisPropertyPostIncrement( t, p.index, delta ).resolved( vm )
+        endIf
+      endIf
+
+      return prior.resolve_post_step( vm, delta )  # generate error
+
     method resolved( vm:BossVM )->Cmd
       if (context)
         return context.resolved( vm ).resolve_context_access( vm, name, args )
@@ -280,14 +359,31 @@ class CmdAccess( t, context:Cmd, name:String, args:CmdArgs ) : Cmd
           if (type)
             return CmdCreateObject( t, type, args ).resolved( vm )
           endIf
+
+          local m = vm.type_Global.find_method( name )
+          if (m)
+            return CmdGlobalCall( t, m, args ).resolved( vm )
+          endIf
+
           throw t.error( "No such class or method '$'." (name) )
         else
           local v = vm.find_local( name )
           if (v.exists)
-            return CmdReadLocal( t, name, v.value.index ).resolved( vm )
+            return CmdLocalRead( t, name, v.value.index ).resolved( vm )
           elseIf (vm.global_vars.contains(name))
-            return CmdReadGlobal( t, name, vm.global_vars.index(name) ).resolved( vm )
+            return CmdGlobalRead( t, name, vm.global_vars.index(name) ).resolved( vm )
           endIf
+
+          local p = vm.this_type.find_property( name )
+          if (p)
+            return CmdThisPropertyRead( t, p.index ).resolved( vm )
+          endIf
+
+          local m = vm.type_Global.find_method( name )
+          if (m)
+            return CmdGlobalCall( t, m, args ).resolved( vm )
+          endIf
+
           throw t.error( "No such method or variable '$'." (name) )
         endIf
       endIf
@@ -298,10 +394,17 @@ class CmdAccess( t, context:Cmd, name:String, args:CmdArgs ) : Cmd
       else
         local v = vm.find_local( name )
         if (v.exists)
-          return CmdWriteLocal( t, name, v.value.index, new_value ).resolved( vm )
-        elseIf (vm.global_vars.contains(name))
-          return CmdWriteGlobal( t, name, vm.global_vars.index(name), new_value ).resolved( vm )
+          return CmdLocalWrite( t, name, v.value.index, new_value ).resolved( vm )
         else
+          local p = vm.this_type.find_property( name )
+          if (p)
+            return CmdThisPropertyWrite( t, p.index, new_value ).resolved( vm )
+          endIf
+
+          if (vm.global_vars.contains(name))
+            return CmdGlobalWrite( t, name, vm.global_vars.index(name), new_value ).resolved( vm )
+          endIf
+
           throw t.error( 'No such method or variable: "$".' (name) )
         endIf
       endIf
@@ -421,6 +524,123 @@ class CmdContextWrite( t, context:Cmd, name:String, new_value:Cmd, element_id=0:
       return name
 endClass
 
+class CmdThisPropertyRead( t, property_index:Int32 ) : Cmd
+  METHODS
+    method execute( vm:BossVM )->BossValue
+      local obj = vm.stack[ vm.fp ].object as BossObject
+      if (obj is null) return UndefinedBossValue
+      return obj.properties[ property_index ]
+endClass
+
+class CmdThisPropertyWrite( t, property_index:Int32, new_value:Cmd ) : Cmd
+  METHODS
+    method execute( vm:BossVM )->BossValue
+      local result = new_value.execute( vm )
+      local obj = vm.stack[ vm.fp ].object as BossObject
+      if (obj) obj.properties[ property_index ] = result
+      return result
+
+    method resolved( vm:BossVM )->Cmd
+      new_value = new_value.resolved( vm )
+      return this
+endClass
+
+class CmdThisPropertyAddLiteralAndAssign( t, property_index:Int32, delta:Real64 ) : Cmd
+  METHODS
+    method execute( vm:BossVM )->BossValue
+      local obj = vm.stack[ vm.fp ].object as BossObject
+      if (obj is null) return UndefinedBossValue
+      local result = obj.properties[ property_index ] + delta
+      obj.properties[ property_index ] = result
+      return result
+endClass
+
+class CmdThisPropertyPostIncrement( t, property_index:Int32, delta:Real64 ) : Cmd
+  METHODS
+    method execute( vm:BossVM )->BossValue
+      local obj = vm.stack[ vm.fp ].object as BossObject
+      if (obj is null) return UndefinedBossValue
+      local result = obj.properties[ property_index ]
+      obj.properties[ property_index ] = result + delta
+      return result
+endClass
+
+class CmdContextAddLiteralAndAssign( t, context:Cmd, name:String, delta:Real64, element_id=0:Int32 ) : Cmd
+  PROPERTIES
+    cached_property_slot = -1 : Int32
+
+  METHODS
+    method execute( vm:BossVM )->BossValue
+      local value = context.execute( vm )
+      local obj = value->Object as BossObject
+      local type = vm.type_of( value )
+      if (not type) return UndefinedBossValue
+
+      local slot = cached_property_slot
+      if (slot >= 0)
+        if (slot < type.properties.count and type.properties[slot].id == element_id)
+          local result = obj.properties[ slot ] + delta
+          obj.properties[ slot ] = result
+          return result
+        endIf
+      endIf
+
+      cached_property_slot = type.locate_property( element_id )
+      if (cached_property_slot >= 0)
+        local result = obj.properties[ cached_property_slot ] + delta
+        obj.properties[ cached_property_slot ] = result
+        return result
+      endIf
+
+      return UndefinedBossValue
+
+    method resolved( vm:BossVM )->Cmd
+      context = context.resolved( vm )
+      element_id = vm.id( name )
+      return this
+
+    method to->String
+      return name
+endClass
+
+class CmdContextPostIncrement( t, context:Cmd, name:String, delta:Real64, element_id=0:Int32 ) : Cmd
+  PROPERTIES
+    cached_property_slot = -1 : Int32
+
+  METHODS
+    method execute( vm:BossVM )->BossValue
+      local value = context.execute( vm )
+      local obj = value->Object as BossObject
+      local type = vm.type_of( value )
+      if (not type) return UndefinedBossValue
+
+      local slot = cached_property_slot
+      if (slot >= 0)
+        if (slot < type.properties.count and type.properties[slot].id == element_id)
+          local result = obj.properties[ slot ]
+          obj.properties[ slot ] = result + delta
+          return result
+        endIf
+      endIf
+
+      cached_property_slot = type.locate_property( element_id )
+      if (cached_property_slot >= 0)
+        local result = obj.properties[ cached_property_slot ]
+        obj.properties[ cached_property_slot ] = result + delta
+        return result
+      endIf
+
+      return UndefinedBossValue
+
+    method resolved( vm:BossVM )->Cmd
+      context = context.resolved( vm )
+      element_id = vm.id( name )
+      return this
+
+    method to->String
+      return name
+endClass
+
 class CmdContextCall( t, context:Cmd, name:String, args:CmdArgs, method_id=0:Int32 ) : Cmd
   PROPERTIES
     cached_method_slot = -1
@@ -471,13 +691,33 @@ class CmdContextCall( t, context:Cmd, name:String, args:CmdArgs, method_id=0:Int
       return "$.$$" (context,name,args)
 endClass
 
-class CmdReadGlobal( t, name:String, index:Int32 ) : Cmd
+class CmdGlobalCall( t, m:BossMethod, args:CmdArgs ) : Cmd
+  PROPERTIES
+    arg_count : Int32
+
+  METHODS
+    method execute( vm:BossVM )->BossValue
+      vm.push( vm.type_Global.get_singleton )
+      if (args) args.execute( vm )
+      m.call( arg_count )
+      return vm.pop
+
+    method resolved( vm:BossVM )->Cmd
+      if (args and args.count > 0) args.resolve( vm ); arg_count = args.count
+      else                         args = null
+      return this
+
+    method to->String
+      return "$$" (m.name,select{args:args->String || "()"})
+endClass
+
+class CmdGlobalRead( t, name:String, index:Int32 ) : Cmd
   METHODS
     method execute( vm:BossVM )->BossValue
       return vm.global_vars[ index ]
 endClass
 
-class CmdWriteGlobal( t, name:String, index:Int32, new_value:Cmd ) : Cmd
+class CmdGlobalWrite( t, name:String, index:Int32, new_value:Cmd ) : Cmd
   METHODS
     method execute( vm:BossVM )->BossValue
       local result = new_value.execute( vm )
@@ -485,13 +725,29 @@ class CmdWriteGlobal( t, name:String, index:Int32, new_value:Cmd ) : Cmd
       return result
 endClass
 
-class CmdReadLocal( t, name:String, index:Int32 ) : Cmd
+class CmdLocalRead( t, name:String, index:Int32 ) : Cmd
   METHODS
     method execute( vm:BossVM )->BossValue
       return vm.stack[ vm.fp+index ]
 endClass
 
-class CmdWriteLocal( t, name:String, index:Int32, new_value:Cmd ) : Cmd
+class CmdLocalAddLiteralAndAssign( t, name:String, index:Int32, delta:Real64 ) : Cmd
+  METHODS
+    method execute( vm:BossVM )->BossValue
+      local result = vm.stack[ vm.fp+index ] + delta
+      vm.stack[ vm.fp+index ] = result
+      return result
+endClass
+
+class CmdLocalPostIncrement( t, name:String, index:Int32, delta:Real64 ) : Cmd
+  METHODS
+    method execute( vm:BossVM )->BossValue
+      local result = vm.stack[ vm.fp+index ]
+      vm.stack[ vm.fp+index ] = result + delta
+      return result
+endClass
+
+class CmdLocalWrite( t, name:String, index:Int32, new_value:Cmd ) : Cmd
   METHODS
     method execute( vm:BossVM )->BossValue
       local result = new_value.execute( vm )
@@ -549,7 +805,9 @@ endClass
 class CmdCreateObject( t, type:BossType, args:CmdArgs ) : Cmd
   METHODS
     method execute( vm:BossVM )->BossValue
-      local result = BossValue( BossObject(type) )
+      local obj = BossObject( type )
+      local result = BossValue( obj )
+      obj.initialize
       if (args.count)
         vm.push( result )
         forEach (arg in args) vm.push( arg.execute(vm) )

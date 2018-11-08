@@ -40,8 +40,6 @@ class BossVM
       type_Object  = get_type( "Object" )
       type_Global  = get_type( "Global" )
 
-      type_Global._singleton = BossObject( type_Global )
-
       global_vars//Global = BossValue( BossObject(type_Global) )
       clear_global_statements
 
@@ -73,7 +71,7 @@ class BossVM
         endIf
 
         stack.clear
-        push( BossValue(type_Global._singleton) )
+        push( BossValue(type_Global.get_singleton) )
         m_on_execute.call( 0 )
         clear_global_statements
         return pop

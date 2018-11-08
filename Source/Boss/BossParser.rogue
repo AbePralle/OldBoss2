@@ -55,10 +55,17 @@ class BossParser : Parser
       rule = add_nested( BinaryParseRule("power") )
       rule.on( "^", <<CmdPower>> )
 
-      # -, !
-      rule = add_nested( UnaryParseRule("negate") )
+      # ++, --
+      rule = add_nested( PostUnaryParseRule("post_unary") )
+      rule.on( "++", <<CmdPostIncrement>> )
+      rule.on( "--", <<CmdPostDecrement>> )
+
+      # -, !, ++, --
+      rule = add_nested( PreUnaryParseRule("pre_unary") )
       rule.on( "-", <<CmdNegate>> )
       rule.on( "!", <<CmdBitwiseNot>> )
+      rule.on( "++", <<CmdPreIncrement>> )
+      rule.on( "--", <<CmdPreDecrement>> )
 
       # .
       rule = add_nested( ContextParseRule("member") )
@@ -115,6 +122,9 @@ class BossParser : Parser
     method next_is_eol->Logical
       return next_is(TokenType.EOL)
 
+    method next_is_identifier->Logical
+      return next_is( TokenType.IDENTIFIER )
+
     method next_is_single_line_elseIf_or_else->Logical
       local start_pos = reader.position
       if (consume(TokenType.KEYWORD_ELSE_IF))
@@ -163,6 +173,11 @@ class BossParser : Parser
       if (next_is(TokenType.KEYWORD_CLASS))
         parse_class
         return true
+      elseIf (next_is(TokenType.KEYWORD_ROUTINE))
+        vm.this_type = vm.type_Global
+        parse_method( read )
+        must_consume( TokenType.KEYWORD_END_ROUTINE )
+        return true
       endIf
       return false
 
@@ -175,16 +190,47 @@ class BossParser : Parser
 
     method parse_category->Logical
       consume_eols
-      if (consume(TokenType.KEYWORD_METHODS))
-        consume_eols
-        while (parse_method) noAction
+      if (consume(TokenType.KEYWORD_PROPERTIES))
+        while (parse_property) noAction
         return true
+
+      elseIf (consume(TokenType.KEYWORD_METHODS))
+        consume_eols
+        local t = peek
+        while (consume(TokenType.KEYWORD_METHOD))
+          parse_method( t )
+          t = peek
+        endWhile
+        return true
+
       endIf
+
       return false
 
-    method parse_method->Logical
-      local t = peek
-      if (not consume(TokenType.KEYWORD_METHOD)) return false
+    method parse_property->Logical
+      consume_eols
+      if (not next_is_identifier) return false
+
+      while (next_is_identifier)
+        local t = peek
+        local name = read_identifier
+        if (vm.this_type.properties.contains(name))
+          throw t.error( "A property named '$' already exists." (name) )
+        endIf
+        local initial_value : Cmd
+        if (consume(TokenType.SYMBOL_EQUALS))
+          initial_value = parse_expression()
+        endIf
+        vm.this_type.properties[ name ] = BossProperty( t, vm.this_type, name, initial_value, vm.this_type.properties.count )
+        consume_eols
+        consume( TokenType.SYMBOL_COMMA )
+        consume_eols
+      endWhile
+
+      return true
+
+
+    method parse_method( t:Token )
       local name = read_identifier
       local m = vm.this_type.get_method( t, name )
       m.reset
@@ -210,7 +256,6 @@ class BossParser : Parser
       consume( TokenType.SYMBOL_COLON )   # optional
       vm.this_method = m
       parse_multi_line_statements( m.statements )
-      return true
 
     method parse_statements( statements:CmdStatements, end_type:TokenType )
       if (consume_eols)

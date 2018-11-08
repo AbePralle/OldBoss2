@@ -19,6 +19,16 @@ class BossType
   METHODS
     method init( vm, t, name, index, attributes=0 )
 
+    method find_method( name:String )->BossMethod
+      local m_index = locate_method( vm.id(name) )
+      if (m_index == -1) return null
+      return methods[ m_index ]
+
+    method find_property( name:String )->BossProperty
+      local p_index = locate_property( vm.id(name) )
+      if (p_index == -1) return null
+      return properties[ p_index ]
+
     method get_method( name:String )->BossMethod
       return get_method( t, name )
 
@@ -28,6 +38,10 @@ class BossType
       result = BossMethod( this, t, name )
       methods[ name ] = result
       return result
+
+    method get_singleton->BossObject
+      if (_singleton is null) _singleton = BossObject( this )
+      return _singleton
 
     method locate_method( method_id:Int32 )->Int32
       # Returns -1 if not found
@@ -47,5 +61,22 @@ class BossType
       if (is_resolved) return
       is_resolved = true
 
+      local locals = vm.locals
+      if (locals.count) vm.locals = BossLocal[]
+
+      local original_type = vm.this_type
+      vm.this_type = this
+
+      forEach (p in properties)
+        if (p.initial_value) p.initial_value = p.initial_value.resolved( vm )
+      endForEach
+
       (forEach in methods).resolve
+
+      vm.this_type = original_type
+
+      vm.locals = locals
+
+    method to->String
+      return name
 endClass
