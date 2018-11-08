@@ -1,6 +1,0 @@
-module Boss
-  uses ParseKit<<Boss>>
-
-class BossReturn( value:BossValue ) : Exception
-endClass
-

@@ -53,16 +53,15 @@ class BossMethod
       vm.fp = old_fp
 
     method execute->BossValue
-      try
         local vm = type_context.vm
-
-        local result = UndefinedBossValue
-        statements.execute( vm )
-
-        return result
-      catch (result:BossReturn)
-        return result.value
-      endTry
+        local result = statements.execute( vm )
+        which (vm.status)
+          case BossVM.STATUS_RETURNING
+            vm.status = BossVM.STATUS_NORMAL
+            return result
+          others
+            return result
+        endWhich
 
     method resolve
       local vm = type_context.vm

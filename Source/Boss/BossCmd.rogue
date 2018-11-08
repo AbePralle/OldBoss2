@@ -44,6 +44,7 @@ augment CmdStatements
       local result = UndefinedBossValue
       forEach (statement in this)
         result = statement.execute( vm )
+        if (vm.status) return result
       endForEach
       return result
 
@@ -824,13 +825,16 @@ endClass
 class CmdReturnUndefined( t ) : Cmd
   METHODS
     method execute( vm:BossVM )->BossValue
-      throw BossReturn( UndefinedBossValue )
+      vm.status = BossVM.STATUS_RETURNING
+      return UndefinedBossValue
 endClass
 
 class CmdReturnValue( t, result:Cmd ) : Cmd
   METHODS
     method execute( vm:BossVM )->BossValue
-      throw BossReturn( result.execute(vm) )
+      local result = result.execute( vm )
+      vm.status = BossVM.STATUS_RETURNING
+      return result
 
     method resolved( vm:BossVM )->Cmd
       result = result.resolved( vm )
@@ -893,6 +897,7 @@ class CmdWhile( t, condition:Cmd, statements=CmdStatements() ) : CmdControlStruc
       local result = UndefinedBossValue
       while (condition.execute(vm)->Logical)
         result = statements.execute( vm )
+        if (vm.status) return result
       endWhile
       return result
 

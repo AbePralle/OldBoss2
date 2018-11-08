@@ -5,6 +5,10 @@ module Boss
 # BossVM
 #==============================================================================
 class BossVM
+  ENUMERATE
+    STATUS_NORMAL    = 0
+    STATUS_RETURNING
+
   PROPERTIES
     stack = BossValue[]
     fp    : Int32
@@ -32,6 +36,8 @@ class BossVM
 
     this_type   : BossType
     this_method : BossMethod
+
+    status = STATUS_NORMAL : Int32
 
   METHODS
     method init
