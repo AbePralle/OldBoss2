@@ -36,12 +36,37 @@ routine rogo_boss
 endRoutine
 
 routine rogo_build
-  File.create_folder( "Build" )
-  local exe = "Build/Boss-$" (System.os)
-  if (Files("Source","**.rogue").any_newer_than(exe))
-    execute( "roguec Source/BossConsole.rogue --debug --output=$ --compile" (exe) )
-  endIf
+  local header_files = Files( "Source", "Boss/*.h" )
+  local source_files = Files( "Source", "Boss/*.cpp" ).add( "Console/Main.cpp" )
+  compile_cpp( header_files, source_files )
+  #execute( "g++ -c -ISource/Boss Source/Console/Main.cpp -o Build/Boss-$.o" (System.os) )
+  #execute( "g++ -c -ISource/Boss Source/Boss/BossVM.cpp -o Build/BossVM.o" )
+  #execute( "g++ -c -ISource/Boss Source/Boss/BossScanner.cpp -o Build/BossScanner.o" )
+  #execute( "g++ Build/Boss-$.o Build/BossVM.o Build/BossScanner.o -o Build/Boss-$" (System.os,System.os) )
   build_launcher
+endRoutine
+
+routine compile_cpp( header_files:Files, source_files:Files )
+  File.create_folder( "Build" )
+  local os  = System.os
+  local exe = "Build/Boss-$" (os)
+  local include_folders = StringLookupList()
+  forEach (filepath in header_files)
+    include_folders.add( File.path(filepath) )
+  endForEach
+  local includes = "-I" + include_folders->String[].join(" -I")
+  forEach (source_filepath in source_files)
+    if (needs_compile(source_filepath))
+    endIf
+  endForEach
+  trace includes
+  #forEach (source_file in source_files)
+  #endForEach
+endRoutine
+
+routine needs_compile( filepath:String, header_files:Files, exe:String )->Logical
+  if (header_files.any_newer_than(filepath)) return true
+  local o_file = TODO: replacing_extension / with_extension
 endRoutine
 
 routine build_launcher
