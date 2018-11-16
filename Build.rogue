@@ -39,7 +39,7 @@ routine rogo_build
   File.create_folder( "Build" )
   local exe = "Build/Boss-$" (System.os)
   if (Files("Source","**.rogue").any_newer_than(exe))
-    execute( "roguec Source/BossConsole.rogue --debug --output=$ --compile" (exe) )
+    execute( "roguec Source/Console/Main.rogue --debug --libraries=Source --output=$ --compile" (exe) )
   endIf
   build_launcher
 endRoutine
