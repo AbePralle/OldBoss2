@@ -1,0 +1,12 @@
+module Boss
+  uses ParseKit<<Boss>>
+
+class BossScope
+  PROPERTIES
+    this_module : BossModule
+    this_type   : BossType
+    this_method : BossMethod
+
+  METHODS
+    method init( this_module )
+endClass

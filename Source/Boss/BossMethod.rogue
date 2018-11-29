@@ -3,32 +3,39 @@ module Boss
 
 class BossMethod
   PROPERTIES
+    vm           : BossVM
     type_context : BossType
     t            : Token
     name         : String
+    global_index : Int32
     statements   = CmdStatements()
     locals       = BossLocal[]
     param_count  : Int32
-    id           : Int32
+
+    is_resolved  : Logical
 
   METHODS
     method init( type_context, t, name )
-      id = type_context.vm.id( name )
+      global_index = type_context.vm.methods.count
+      vm = type_context.vm
 
+      #{
     method reset
       statements.clear
       locals.clear
       param_count = 0
+      }#
 
     method add_local( t:Token, name:String, initial_value:Cmd )->Int32
       local index = locals.count + 1
       locals.add( BossLocal(t,name,initial_value,index) )
       return index
 
-    method add_param( t:Token, name:String, initial_value:Cmd )->Int32
+    method add_parameter( t:Token, name:String, initial_value:Cmd )->Int32
       ++param_count
       return add_local( t, name, initial_value )
 
+      #{
     method call( arg_count:Int32 )
       local vm    = type_context.vm
       local stack = vm.stack
@@ -62,16 +69,21 @@ class BossMethod
           others
             return result
         endWhich
+        }#
 
     method resolve
-      local vm = type_context.vm
+      if (is_resolved) return
+      is_resolved = true
 
+      trace "TODO"
+      #{
       forEach (param_index in 0..<param_count)
         vm.locals.add( locals[param_index] )
       endForEach
 
-      statements.resolve( vm )
+      #statements.resolve( vm )
 
       loop (param_count) vm.locals.remove_last
+      }#
 
 endClass

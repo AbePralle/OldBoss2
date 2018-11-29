@@ -3,21 +3,33 @@ module Boss
 
 class BossType
   PROPERTIES
-    vm          : BossVM
-    t           : Token
-    name        : String
-    index       : Int32
-    attributes  : Int32
+    vm           : BossVM
+    t            : Token
+    name         : String
+    global_index : Int32
+    attributes   : Int32
 
+    is_defined   : Logical
+    is_resolved  : Logical
+
+    #{
     _singleton  : BossObject
+    }#
 
-    methods     = LookupList<<BossMethod>>()
-    properties  = LookupList<<BossProperty>>()
+    methods      = LookupList<<BossMethod>>()
+    properties   = LookupList<<BossProperty>>()
 
-    is_resolved : Logical
+    #{
+    is_resolved  : Logical
+    }#
 
   METHODS
-    method init( vm, t, name, index, attributes=0 )
+    method init( vm, t, name, attributes=0 )
+      global_index = vm.types.count
+      vm.types[ name ] = this
+
+    #{
+    method init( vm, t, name, global_index, attributes=0 )
 
     method find_method( name:String )->BossMethod
       local m_index = locate_method( vm.id(name) )
@@ -28,6 +40,7 @@ class BossType
       local p_index = locate_property( vm.id(name) )
       if (p_index == -1) return null
       return properties[ p_index ]
+      }#
 
     method get_method( name:String )->BossMethod
       return get_method( t, name )
@@ -39,6 +52,7 @@ class BossType
       methods[ name ] = result
       return result
 
+      #{
     method get_singleton->BossObject
       if (_singleton is null) _singleton = BossObject( this )
       return _singleton
@@ -56,11 +70,15 @@ class BossType
         if (p.id == property_id) return index
       endForEach
       return -1
+      }#
 
     method resolve
       if (is_resolved) return
       is_resolved = true
 
+      if (not is_defined) throw t.error( ''Reference to undefined type "$".'' (name) )
+
+      #{
       local locals = vm.locals
       if (locals.count) vm.locals = BossLocal[]
 
@@ -70,12 +88,14 @@ class BossType
       forEach (p in properties)
         if (p.initial_value) p.initial_value = p.initial_value.resolved( vm )
       endForEach
-
+      }#
       (forEach in methods).resolve
 
+      #{
       vm.this_type = original_type
 
       vm.locals = locals
+      }#
 
     method to->String
       return name

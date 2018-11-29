@@ -6,13 +6,11 @@ class BossProperty
     type_context  : BossType
     t             : Token
     name          : String
-    id            : Int32
     initial_value : Cmd
     index         : Int32
 
   METHODS
     method init( t, type_context, name, initial_value, index )
-      id = type_context.vm.id( name )
 
     method to->String
       return name

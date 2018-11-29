@@ -9,6 +9,8 @@ class BossConsole
 
   METHODS
     method init
+      vm.execute( "[Console]", "3" )
+      #{
       if (System.command_line_arguments.count)
         local literals = String[]
         local any_files = false
@@ -45,4 +47,5 @@ class BossConsole
       loop
         execute( Console.input("Boss> "), &show_result )
       endLoop
+      }#
 endClass

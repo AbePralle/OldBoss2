@@ -5,32 +5,42 @@ module Boss
 # BossVM
 #==============================================================================
 class BossVM
+  #{
   ENUMERATE
     STATUS_NORMAL    = 0
     STATUS_RETURNING
+    }#
 
   PROPERTIES
+    module_list   = BossModule[]
+    module_lookup = StringTable<<BossModule>>()
+    is_resolved   : Logical
+
+    #{
     stack = BossValue[]
     fp    : Int32
 
     id_table     = LookupList<<Int32>>()
     global_vars  = LookupList<<BossValue>>()
+    }#
 
-    parser       = BossParser( this )
+    parser       = BossParser()
 
-    internal_t   : Token
+    #{
     last_error   : BossError
 
     is_resolved  : Logical
-    types        = LookupList<<BossType>>()
+    }#
 
+    types        = LookupList<<BossType>>()
+    methods      = LookupList<<BossMethod>>()
+
+    #{
     type_Object  : BossType
     type_Global  : BossType
 
-    id_init      : Int32
-
     global_statements = CmdStatements()
-    m_on_execute      : BossMethod
+    m_on_launch      : BossMethod
 
     locals      = BossLocal[]
 
@@ -38,8 +48,10 @@ class BossVM
     this_method : BossMethod
 
     status = STATUS_NORMAL : Int32
+    }#
 
   METHODS
+    #{
     method init
       internal_t   = Token( TokenType.EOI, "[BossVM]", 0, 0 )
 
@@ -50,7 +62,15 @@ class BossVM
       clear_global_statements
 
       id_init = id( "init" )
+      }#
 
+    method add_module( filepath:String )->BossModule
+      is_resolved = false
+      local m = BossModule( this, filepath )
+      module_list.add( m )
+      return m
+
+      #{
     method call( m_id:Int32, argc:Int32 )->BossValue
       local new_fp = stack.count - (argc+1)
       local context = stack[ new_fp ]
@@ -65,20 +85,33 @@ class BossVM
       endIf
 
     method clear_global_statements
-      m_on_execute = type_Global.get_method( "on_execute" )
-      m_on_execute.statements.clear
+      m_on_launch = type_Global.get_method( "on_execute" )
+      m_on_launch.statements.clear
+      }#
 
+    method execute( filename:String, source:String )
+      try
+        local m = add_module( filename )
+        if (parse(m,source))
+          resolve
+          #m.execute
+        endIf
+      catch (err:BossError)
+        err.print
+      endTry
+
+      #{
     method execute->BossValue
       try
         if (not is_resolved)
-          m_on_execute.statements.add( global_statements )
+          m_on_launch.statements.add( global_statements )
           global_statements.clear
           (forEach in types).resolve
         endIf
 
         stack.clear
         push( BossValue(type_Global.get_singleton) )
-        m_on_execute.call( 0 )
+        m_on_launch.call( 0 )
         clear_global_statements
         return pop
 
@@ -96,7 +129,16 @@ class BossVM
 
     method get( name:String )->BossValue [macro]
       return this.global_vars[ name ]
+      }#
 
+    method get_module( filepath:String )->BossModule
+      local m = module_lookup[ filepath ]
+      if (m) return m
+      m = add_module( filepath )
+      module_lookup[ filepath ] = m
+      return m
+
+      #{
     method get_type( t:Token, name:String, attributes=0:Int32 )->BossType
       local result = types[ name ]
       if (result)
@@ -120,7 +162,29 @@ class BossVM
       local result = id_table.count
       id_table[ st ] = result
       return result
+      }#
 
+    method parse( m:BossModule, source:String )->Logical
+      try
+        local scope = BossScope( m )
+        parser.scope = scope
+        parser.set_source( m.filepath, source )
+        loop
+          if (parser.parse_component) nextIteration
+
+          scope.this_type   = scope.this_module.type_Global
+          scope.this_method = scope.this_module.m_on_launch
+          if (parser.parse_multi_line_statements(scope.this_method.statements)) nextIteration
+
+          escapeLoop
+        endLoop
+        return true
+      catch (err:BossError)
+        err.print
+        return false
+      endTry
+
+      #{
     method parse( filepath:String )->Logical
       return parse( filepath, File.load_as_string(filepath) )
 
@@ -133,7 +197,7 @@ class BossVM
         loop
           if (parser.parse_component) nextIteration
 
-          this_method = m_on_execute
+          this_method = m_on_launch
           this_type = this_method.type_context
           if (parser.parse_multi_line_statements(global_statements)) nextIteration
 
@@ -155,7 +219,14 @@ class BossVM
     method pop->BossValue
       if (not stack.count) throw BossError( "BossVM.pop() on empty stack." )
       return stack.remove_last
+      }#
 
+    method resolve
+      if (is_resolved) return
+      is_resolved = true
+      (forEach in module_list).resolve
+
+      #{
     method set( name:String, new_value:BossValue ) [macro]
       this.global_vars[ name ] = new_value
 
@@ -163,6 +234,6 @@ class BossVM
       local obj = value.object as BossObject
       if (obj) return obj.type
       return null
-
+      }#
 endClass
 

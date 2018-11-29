@@ -1,0 +1,43 @@
+module Boss
+  uses ParseKit<<Boss>>
+
+class BossModule
+  PROPERTIES
+    vm          : BossVM
+    t           : Token
+    filepath    : String
+    name        : String
+    type_Global : BossType
+    m_on_launch : BossMethod
+
+    types       = LookupList<<BossType>>()
+
+    is_resolved : Logical
+
+  METHODS
+    method init( vm, filepath )
+      t = Token( TokenType.EOI, filepath, 0, 0 )
+      type_Global = define_type( "Global" )
+      m_on_launch = type_Global.get_method( "on_launch" )
+      name = File.filename( filepath ).before_suffix( ".boss", &ignore_case )
+
+    method define_type( name:String )->BossType
+      return get_type( name ).[ is_defined = true ]
+
+    method get_type( name:String )->BossType
+      return get_type( t, name )
+
+    method get_type( type_t:Token, name:String )->BossType
+      local type = types[ name ]
+      if (type) return type
+      type = BossType( vm, type_t, name )
+      types[ name ] = type
+      return type
+
+    method resolve
+      if (is_resolved) return
+      is_resolved = true
+      (forEach in types).resolve
+
+endClass
+

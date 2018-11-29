@@ -6,11 +6,11 @@ uses ParseKit<<Boss>>
 #==============================================================================
 class BossParser : Parser
   PROPERTIES
-    vm               : BossVM
+    scope            : BossScope
     parse_expression : ParseRule
 
   METHODS
-    method init( vm )
+    method init
       local rule = add( ParseRule("expression" ) )
 
       rule = add_nested( BinaryParseRule("compare") )
@@ -174,7 +174,7 @@ class BossParser : Parser
         parse_class
         return true
       elseIf (next_is(TokenType.KEYWORD_ROUTINE))
-        vm.this_type = vm.type_Global
+        scope.this_type = scope.this_module.type_Global
         parse_method( read )
         must_consume( TokenType.KEYWORD_END_ROUTINE )
         return true
@@ -184,7 +184,8 @@ class BossParser : Parser
     method parse_class
       local t = read
       local name = read_identifier
-      vm.this_type = vm.get_type( t, name )
+      scope.this_type = scope.this_module.get_type( t, name )
+      if (scope.this_type.is_defined) throw t.error( "A class named $ is already defined." )
       while (parse_category) noAction
       must_consume( TokenType.KEYWORD_END_CLASS )
 
@@ -214,14 +215,14 @@ class BossParser : Parser
       while (next_is_identifier)
         local t = peek
         local name = read_identifier
-        if (vm.this_type.properties.contains(name))
+        if (scope.this_type.properties.contains(name))
           throw t.error( "A property named '$' already exists." (name) )
         endIf
         local initial_value : Cmd
         if (consume(TokenType.SYMBOL_EQUALS))
           initial_value = parse_expression()
         endIf
-        vm.this_type.properties[ name ] = BossProperty( t, vm.this_type, name, initial_value, vm.this_type.properties.count )
+        scope.this_type.properties[ name ] = BossProperty( t, scope.this_type, name, initial_value, scope.this_type.properties.count )
         consume_eols
         consume( TokenType.SYMBOL_COMMA )
         consume_eols
@@ -232,8 +233,7 @@ class BossParser : Parser
 
     method parse_method( t:Token )
       local name = read_identifier
-      local m = vm.this_type.get_method( t, name )
-      m.reset
+      local m = scope.this_type.get_method( t, name )
       if (consume(TokenType.SYMBOL_OPEN_PAREN))
         if (not next_is(TokenType.SYMBOL_CLOSE_PAREN))
           consume_eols
@@ -247,14 +247,14 @@ class BossParser : Parser
             if (consume(TokenType.SYMBOL_EQUALS))
               initial_value = parse_expression()
             endIf
-            m.add_param( param_t, param_name, initial_value )
+            m.add_parameter( param_t, param_name, initial_value )
             consume_eols
           endWhile
         endIf
         must_consume( TokenType.SYMBOL_CLOSE_PAREN )
       endIf
       consume( TokenType.SYMBOL_COLON )   # optional
-      vm.this_method = m
+      scope.this_method = m
       parse_multi_line_statements( m.statements )
 
     method parse_statements( statements:CmdStatements, end_type:TokenType )
