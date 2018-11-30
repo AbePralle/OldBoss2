@@ -3,28 +3,26 @@ module Boss
 
 class BossType
   PROPERTIES
-    vm           : BossVM
-    t            : Token
-    name         : String
-    global_index : Int32
-    attributes   : Int32
+    vm             : BossVM
+    module_context : BossModule
+    t              : Token
+    name           : String
+    global_index   : Int32
+    attributes     : Int32
 
-    is_defined   : Logical
-    is_resolved  : Logical
-
-    #{
-    _singleton  : BossObject
-    }#
-
-    methods      = LookupList<<BossMethod>>()
-    properties   = LookupList<<BossProperty>>()
+    is_defined     : Logical
+    is_resolved    : Logical
 
     #{
-    is_resolved  : Logical
+    _singleton    : BossObject
     }#
+
+    methods        = LookupList<<BossMethod>>()
+    properties     = LookupList<<BossProperty>>()
 
   METHODS
-    method init( vm, t, name, attributes=0 )
+    method init( module_context, t, name, attributes=0 )
+      vm = module_context.vm
       global_index = vm.types.count
       vm.types[ name ] = this
 

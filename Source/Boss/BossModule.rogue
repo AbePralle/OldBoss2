@@ -30,7 +30,7 @@ class BossModule
     method get_type( type_t:Token, name:String )->BossType
       local type = types[ name ]
       if (type) return type
-      type = BossType( vm, type_t, name )
+      type = BossType( this, type_t, name )
       types[ name ] = type
       return type
 

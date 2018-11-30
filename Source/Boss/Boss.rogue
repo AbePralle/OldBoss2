@@ -3,6 +3,8 @@
 # 2018.03.30 by Abe Pralle
 #==============================================================================
 $include "Boss/BossCmd.rogue"
+$include "Boss/BossCmdExecute.rogue"
+$include "Boss/BossCmdResolve.rogue"
 $include "Boss/BossError.rogue"
 $include "Boss/BossJSON.rogue"
 $include "Boss/BossLocal.rogue"

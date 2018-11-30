@@ -1,0 +1,478 @@
+module Boss
+  uses ParseKit<<Boss>>
+
+#==============================================================================
+# Cmd Nodes (Parse Tree / AST)
+#==============================================================================
+augment Cmd
+  METHODS
+    method resolved( scope:BossScope )->Cmd
+      return this
+
+    method resolve_context_access( scope:BossScope, name:String, args:CmdArgs )->Cmd
+      # Note this Cmd is already resolved() before resolve_context_access() is called on it
+      if (args)
+        return CmdContextCall( t, this, name, args ).resolved( scope )
+      else
+        return CmdContextRead( t, this, name ).resolved( scope )
+      endIf
+
+    method resolve_assignment( scope:BossScope, new_value:Cmd )->Cmd
+      throw t.error( "Illegal assignment" )
+
+    method resolve_pre_step( scope:BossScope, delta:Int32 )->Cmd
+      throw t.error( "Illegal operand for $." (select(delta){-1:"--"||"++"}) )
+
+    method resolve_post_step( scope:BossScope, delta:Int32 )->Cmd
+      throw t.error( "Illegal operand for $." (select(delta){-1:"--"||"++"}) )
+endAugment
+
+augment CmdStatements
+  METHODS
+    method resolve( scope:BossScope )
+      forEach (statement at index in this)
+        this[ index ] = statement.resolved( scope )
+      endForEach
+      (forEach in this).exit_scope( scope )
+endAugment
+
+augment CmdArgs
+  METHODS
+    method resolve( scope:BossScope )
+      forEach (arg at index in this)
+        this[ index ] = arg.resolved( scope )
+      endForEach
+endAugment
+
+augment CmdUnary
+  METHODS
+    method resolved( scope:BossScope )->Cmd
+      operand = operand.resolved( scope )
+      return this
+endAugment
+
+augment BossCmdUnary
+  METHODS
+    method op->String
+      return $string($SYMBOL)
+endAugment
+
+augment CmdBinary
+  METHODS
+    method resolved( scope:BossScope )->Cmd
+      left = left.resolved( scope )
+      right = right.resolved( scope )
+      return resolve_op
+
+    method resolve_op->Cmd
+      return this
+endAugment
+
+augment CmdBinaryOp
+endAugment
+
+augment CmdLiteralUndefined
+endAugment
+
+augment CmdLiteralNull
+endAugment
+
+augment CmdLiteralInt32
+  METHODS
+    method resolved( scope:BossScope )->Cmd
+      return this
+endAugment
+
+augment CmdLiteralString
+  METHODS
+    method resolved( scope:BossScope )->Cmd
+      return this
+endAugment
+
+augment CmdAdd
+endAugment
+
+augment CmdSubtract
+endAugment
+
+augment CmdMultiply
+endAugment
+
+augment CmdDivide
+endAugment
+
+augment CmdMod
+endAugment
+
+augment CmdPower
+endAugment
+
+augment CmdCompareEQ
+endAugment
+
+augment CmdCompareNE
+endAugment
+
+augment CmdCompareLE
+endAugment
+
+augment CmdCompareLT
+endAugment
+
+augment CmdCompareGE
+endAugment
+
+augment CmdCompareGT
+endAugment
+
+augment CmdBitwiseXor
+endAugment
+
+augment CmdBitwiseOr
+endAugment
+
+augment CmdBitwiseAnd
+endAugment
+
+augment CmdLeftShift
+endAugment
+
+augment CmdRightShift
+endAugment
+
+augment CmdRightShiftX
+endAugment
+
+augment CmdNegate
+endAugment
+
+augment CmdPreIncrement
+  METHODS
+    method resolved( scope:BossScope )->Cmd
+      return operand.resolve_pre_step( scope, 1 )
+endAugment
+
+augment CmdPreDecrement
+  METHODS
+    method resolved( scope:BossScope )->Cmd
+      return operand.resolve_pre_step( scope, -1 )
+endAugment
+
+augment CmdPostIncrement
+  METHODS
+    method resolved( scope:BossScope )->Cmd
+      return operand.resolve_post_step( scope, 1 )
+endAugment
+
+augment CmdPostDecrement
+  METHODS
+    method resolved( scope:BossScope )->Cmd
+      return operand.resolve_post_step( scope, -1 )
+endAugment
+
+augment CmdBitwiseNot
+endAugment
+
+augment CmdAssign
+  METHODS
+    method resolved( scope:BossScope )->Cmd
+      return left.resolve_assignment( scope, right.resolved(scope) )
+endAugment
+
+augment CmdAccess
+  METHODS
+      #{
+    method resolve_pre_step( scope:BossScope, delta:Int32 )->Cmd
+      if (context)
+        if (args is null) return CmdContextAddLiteralAndAssign( t, this, name, delta ).resolved( scope )
+      else
+        local v = scope.find_local( name )
+        if (v.exists)
+          return CmdLocalAddLiteralAndAssign( t, name, v.value.index, delta ).resolved( scope )
+        endIf
+        local p = scope.this_type.find_property( name )
+        if (p)
+          return CmdThisPropertyAddLiteralAndAssign( t, p.index, delta ).resolved( scope )
+        endIf
+      endIf
+      return prior.resolve_pre_step( scope, delta )  # generate error
+
+    method resolve_post_step( scope:BossScope, delta:Int32 )->Cmd
+      if (context)
+        if (args is null) return CmdContextPostIncrement( t, this, name, delta ).resolved( scope )
+      else
+        local v = scope.find_local( name )
+        if (v.exists)
+          return CmdLocalPostIncrement( t, name, v.value.index, delta ).resolved( scope )
+        endIf
+        local p = scope.this_type.find_property( name )
+        if (p)
+          return CmdThisPropertyPostIncrement( t, p.index, delta ).resolved( scope )
+        endIf
+      endIf
+
+      return prior.resolve_post_step( scope, delta )  # generate error
+      }#
+
+      #{
+    method resolved( scope:BossScope )->Cmd
+      if (context)
+        return context.resolved( scope ).resolve_context_access( scope, name, args )
+
+      else
+        # No class or object context given
+        if (args)
+          args.resolve( scope )
+          local type = scope.types[ name ]
+          if (type)
+            return CmdCreateObject( t, type, args ).resolved( scope )
+          endIf
+
+          local m = scope.type_Global.find_method( name )
+          if (m)
+            return CmdGlobalCall( t, m, args ).resolved( scope )
+          endIf
+
+          throw t.error( "No such class or method '$'." (name) )
+        else
+          local v = scope.find_local( name )
+          if (v.exists)
+            return CmdLocalRead( t, name, v.value.index ).resolved( scope )
+          elseIf (scope.global_vars.contains(name))
+            return CmdGlobalRead( t, name, scope.global_vars.index(name) ).resolved( scope )
+          endIf
+
+          local p = scope.this_type.find_property( name )
+          if (p)
+            return CmdThisPropertyRead( t, p.index ).resolved( scope )
+          endIf
+
+          local m = scope.type_Global.find_method( name )
+          if (m)
+            return CmdGlobalCall( t, m, args ).resolved( scope )
+          endIf
+
+          throw t.error( "No such method or variable '$'." (name) )
+        endIf
+      endIf
+
+    method resolve_assignment( scope:BossScope, new_value:Cmd )->Cmd
+      if (context)
+        return CmdContextWrite( t, context, name, new_value ).resolved( scope )
+      else
+        local v = scope.find_local( name )
+        if (v.exists)
+          return CmdLocalWrite( t, name, v.value.index, new_value ).resolved( scope )
+        else
+          local p = scope.this_type.find_property( name )
+          if (p)
+            return CmdThisPropertyWrite( t, p.index, new_value ).resolved( scope )
+          endIf
+
+          if (scope.global_vars.contains(name))
+            return CmdGlobalWrite( t, name, scope.global_vars.index(name), new_value ).resolved( scope )
+          endIf
+
+          throw t.error( 'No such method or variable: "$".' (name) )
+        endIf
+      endIf
+      }#
+endAugment
+
+augment CmdContextRead
+  METHODS
+    #{
+    method resolved( scope:BossScope )->Cmd
+      context = context.resolved( scope )
+      element_id = scope.id( name )
+      return this
+      }#
+endAugment
+
+augment CmdContextWrite
+  METHODS
+    #{
+    method resolved( scope:BossScope )->Cmd
+      context = context.resolved( scope )
+      element_id = scope.id( name )
+      new_value = new_value.resolved( scope )
+      return this
+      }#
+endAugment
+
+augment CmdThisPropertyRead
+endAugment
+
+augment CmdThisPropertyWrite
+  METHODS
+    method resolved( scope:BossScope )->Cmd
+      new_value = new_value.resolved( scope )
+      return this
+endAugment
+
+augment CmdThisPropertyAddLiteralAndAssign
+endAugment
+
+augment CmdThisPropertyPostIncrement
+endAugment
+
+augment CmdContextAddLiteralAndAssign
+  METHODS
+    #{
+    method resolved( scope:BossScope )->Cmd
+      context = context.resolved( scope )
+      element_id = scope.id( name )
+      return this
+      }#
+endAugment
+
+augment CmdContextPostIncrement
+  METHODS
+    #{
+    method resolved( scope:BossScope )->Cmd
+      context = context.resolved( scope )
+      element_id = scope.id( name )
+      return this
+      }#
+endAugment
+
+augment CmdContextCall
+  METHODS
+    #{
+    method resolved( scope:BossScope )->Cmd
+      context = context.resolved( scope )
+      args.resolve( scope )
+      method_id = scope.id( name )
+      return this
+      }#
+endAugment
+
+augment CmdGlobalCall
+  METHODS
+    method resolved( vm:BossScope )->Cmd
+      if (args and args.count > 0) args.resolve( vm ); arg_count = args.count
+      else                         args = null
+      return this
+endAugment
+
+augment CmdGlobalRead
+endAugment
+
+augment CmdGlobalWrite
+endAugment
+
+augment CmdLocalRead
+endAugment
+
+augment CmdLocalAddLiteralAndAssign
+endAugment
+
+augment CmdLocalPostIncrement
+endAugment
+
+augment CmdLocalWrite
+endAugment
+
+
+augment CmdGlobal
+  METHODS
+    #{
+    method resolved( scope:BossScope )->Cmd
+      if (index == -1)
+        if (scope.global_vars.contains(name))
+          throw t.error( 'A global variable named "$" already exists.' (name) )
+        endIf
+        index = scope.global_vars.count
+        scope.global_vars[ name ] = UndefinedBossValue
+      endIf
+      initial_value = initial_value.resolved( scope )
+      return this
+      }#
+endAugment
+
+
+augment CmdLocal
+  METHODS
+    #{
+    method resolved( scope:BossScope )->Cmd
+      if (index == -1)
+        local v = scope.find_local( name )
+        if (v.exists)
+          throw t.error( 'A local variable named "$" already exists.' (name) )
+        else
+          if (initial_value) initial_value = initial_value.resolved( scope )
+          else               initial_value = CmdLiteralUndefined(t)
+          index = scope.this_method.add_local( t, name, initial_value )
+        endIf
+      endIf
+      scope.locals.add( scope.this_method.locals[index-1] )
+      return this
+      }#
+endAugment
+
+augment CmdCreateObject
+  METHODS
+    method resolved( scope:BossScope )->Cmd
+      type.resolve
+      args.resolve( scope )
+      return this
+endAugment
+
+augment CmdReturnUndefined
+endAugment
+
+augment CmdReturnValue
+  METHODS
+    method resolved( vm:BossScope )->Cmd
+      result = result.resolved( vm )
+      return this
+endAugment
+
+
+augment CmdPrintln
+  METHODS
+    method resolved( scope:BossScope )->Cmd
+      if (args) args.resolve( scope )
+      return this
+endAugment
+
+
+augment CmdControlStructure
+endAugment
+
+
+augment CmdIf
+  METHODS
+    method resolved( scope:BossScope )->Cmd
+      condition = condition.resolved( scope )
+      statements.resolve( scope )
+      return this
+endAugment
+
+
+augment CmdIfElse
+  METHODS
+    method resolved( scope:BossScope )->Cmd
+      condition = condition.resolved( scope )
+      statements.resolve( scope )
+      else_statements.resolve( scope )
+      return this
+endAugment
+
+
+augment CmdWhile
+  METHODS
+    method resolved( scope:BossScope )->Cmd
+      condition = condition.resolved( scope )
+      statements.resolve( scope )
+      return this
+endAugment
+
+augment CmdThis
+endAugment
+
+#{
+augment CmdThisCall
+  METHODS
+endAugment
+}#

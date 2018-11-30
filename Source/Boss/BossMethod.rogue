@@ -75,14 +75,15 @@ class BossMethod
       if (is_resolved) return
       is_resolved = true
 
-      trace "TODO"
       #{
       forEach (param_index in 0..<param_count)
         vm.locals.add( locals[param_index] )
       endForEach
+      }#
 
-      #statements.resolve( vm )
+      statements.resolve( BossScope(this) )
 
+      #{
       loop (param_count) vm.locals.remove_last
       }#
 

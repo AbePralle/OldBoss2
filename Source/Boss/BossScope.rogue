@@ -9,4 +9,8 @@ class BossScope
 
   METHODS
     method init( this_module )
+
+    method init( this_method )
+      this_type = this_method.type_context
+      this_module = this_type.module_context
 endClass
