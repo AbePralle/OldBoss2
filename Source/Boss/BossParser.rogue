@@ -233,7 +233,7 @@ class BossParser : Parser
 
     method parse_method( t:Token )
       local name = read_identifier
-      local m = scope.this_type.get_method( t, name )
+      local m = scope.this_type.add_method( t, name )
       if (consume(TokenType.SYMBOL_OPEN_PAREN))
         if (not next_is(TokenType.SYMBOL_CLOSE_PAREN))
           consume_eols
@@ -247,7 +247,11 @@ class BossParser : Parser
             if (consume(TokenType.SYMBOL_EQUALS))
               initial_value = parse_expression()
             endIf
-            m.add_parameter( param_t, param_name, initial_value )
+            local param_type : BossType
+            if (consume(TokenType.SYMBOL_COLON))
+              param_type = parse_type
+            endIf
+            m.add_parameter( param_t, param_name, initial_value, param_type )
             consume_eols
           endWhile
         endIf
@@ -256,6 +260,14 @@ class BossParser : Parser
       consume( TokenType.SYMBOL_COLON )   # optional
       scope.this_method = m
       parse_multi_line_statements( m.statements )
+
+    method parse_type->BossType
+      local t = peek
+      local name = read_identifier
+      while (consume(TokenType.SYMBOL_COLON_COLON))
+        name += "::" + read_identifier
+      endWhile
+      return CmdTypeReference( t, name )
 
     method parse_statements( statements:CmdStatements, end_type:TokenType )
       if (consume_eols)

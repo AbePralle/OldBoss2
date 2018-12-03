@@ -7,7 +7,7 @@ class BossType
     module_context : BossModule
     t              : Token
     name           : String
-    global_index   : Int32
+    #global_index   : Int32
     attributes     : Int32
 
     is_defined     : Logical
@@ -17,38 +17,43 @@ class BossType
     _singleton    : BossObject
     }#
 
-    methods        = LookupList<<BossMethod>>()
-    properties     = LookupList<<BossProperty>>()
+    properties           = LookupList<<BossProperty>>()
+    methods              = BossMethod[]
+    methods_by_signature = LookupList<<BossMethod>>()
+    methods_by_name      = LookupList<<BossMethod[]>>()
 
   METHODS
     method init( module_context, t, name, attributes=0 )
       vm = module_context.vm
-      global_index = vm.types.count
-      vm.types[ name ] = this
+      #global_index = vm.types.count
+      #vm.types[ name ] = this
 
     #{
     method init( vm, t, name, global_index, attributes=0 )
+      }#
 
-    method find_method( name:String )->BossMethod
-      local m_index = locate_method( vm.id(name) )
-      if (m_index == -1) return null
-      return methods[ m_index ]
+    method add_method( name:String )->BossMethod
+      return add_method( t, name )
 
+    method add_method( t:Token, name:String )->BossMethod
+      return add_method( BossMethod(this,t,name) )
+
+    method add_method( m:BossMethod )->BossMethod
+      local list = methods_by_name[ m.name ]
+      if (not list)
+        list = BossMethod[]
+        methods_by_name[ m.name ] = list
+      endIf
+      list.add( m )
+      methods.add( m )
+      return m
+
+      #{
     method find_property( name:String )->BossProperty
       local p_index = locate_property( vm.id(name) )
       if (p_index == -1) return null
       return properties[ p_index ]
       }#
-
-    method get_method( name:String )->BossMethod
-      return get_method( t, name )
-
-    method get_method( t:Token, name:String )->BossMethod
-      local result = methods[ name ]
-      if (result) return result
-      result = BossMethod( this, t, name )
-      methods[ name ] = result
-      return result
 
       #{
     method get_singleton->BossObject
@@ -98,3 +103,7 @@ class BossType
     method to->String
       return name
 endClass
+
+class BossTypeReference( t:Token, name:String )
+endClass
+

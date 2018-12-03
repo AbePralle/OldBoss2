@@ -1,8 +1,10 @@
 module Boss
   uses ParseKit<<Boss>>
 
-class BossLocal( t:Token, name:String, initial_value:Cmd, index:Int32 ) [compound]
+class BossLocal( t:Token, name:String, initial_value:Cmd, type_ref:BossTypeReference, index:Int32 )
+  PROPERTIES
+
   METHODS
     method to->String
-      return "[$] $" (index,name)
+      return "[$] $:$" (index,name,type)
 endClass

@@ -12,9 +12,12 @@ class BossVM
     }#
 
   PROPERTIES
-    module_list   = BossModule[]
-    module_lookup = StringTable<<BossModule>>()
-    is_resolved   : Logical
+    module_list     = BossModule[]
+    module_lookup   = StringTable<<BossModule>>()
+    is_resolved     : Logical
+
+    default_module     : BossModule
+    default_type_Value : BossType
 
     #{
     stack = BossValue[]
@@ -32,8 +35,8 @@ class BossVM
     is_resolved  : Logical
     }#
 
-    types        = LookupList<<BossType>>()
-    methods      = LookupList<<BossMethod>>()
+    #types        = LookupList<<BossType>>()
+    #methods      = LookupList<<BossMethod>>()
 
     #{
     type_Object  : BossType
@@ -51,6 +54,10 @@ class BossVM
     }#
 
   METHODS
+    method init
+      default_module = add_module( "Default" )
+      default_type_Value = default_module.define_type( "Value" )
+
     #{
     method init
       internal_t   = Token( TokenType.EOI, "[BossVM]", 0, 0 )
@@ -89,16 +96,17 @@ class BossVM
       m_on_launch.statements.clear
       }#
 
-    method execute( filename:String, source:String )
+    method execute( filename:String, source:String )->BossValue
       try
         local m = add_module( filename )
         if (parse(m,source))
           resolve
-          #m.execute
+          return m.execute
         endIf
       catch (err:BossError)
         err.print
       endTry
+      return UndefinedBossValue
 
       #{
     method execute->BossValue

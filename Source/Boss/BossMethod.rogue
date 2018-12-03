@@ -5,9 +5,11 @@ class BossMethod
   PROPERTIES
     vm           : BossVM
     type_context : BossType
+    return_type  : BossType
     t            : Token
     name         : String
-    global_index : Int32
+    signature    : String
+    #global_index : Int32
     statements   = CmdStatements()
     locals       = BossLocal[]
     param_count  : Int32
@@ -16,7 +18,7 @@ class BossMethod
 
   METHODS
     method init( type_context, t, name )
-      global_index = type_context.vm.methods.count
+      #global_index = type_context.vm.methods.count
       vm = type_context.vm
 
       #{
@@ -26,14 +28,14 @@ class BossMethod
       param_count = 0
       }#
 
-    method add_local( t:Token, name:String, initial_value:Cmd )->Int32
+    method add_local( t:Token, name:String, initial_value:Cmd, type:CmdTypeReference )->Int32
       local index = locals.count + 1
-      locals.add( BossLocal(t,name,initial_value,index) )
+      locals.add( BossLocal(t,name,initial_value,type,index) )
       return index
 
-    method add_parameter( t:Token, name:String, initial_value:Cmd )->Int32
+    method add_parameter( t:Token, name:String, initial_value:Cmd, type:BossTypeReference )->Int32
       ++param_count
-      return add_local( t, name, initial_value )
+      return add_local( t, name, initial_value, type )
 
       #{
     method call( arg_count:Int32 )
@@ -86,5 +88,18 @@ class BossMethod
       #{
       loop (param_count) vm.locals.remove_last
       }#
+
+    method signature->String
+      if (@signature) return @signature
+      use builder = StringBuilder.pool
+        builder.print( name )
+        builder.print( '(' )
+        forEach (index in 0..<param_count)
+          if (index > 0) builder.print( ',' )
+          local param = locals[ index ]
+          builder.print( param.type.name )
+        endForEach
+        builder.print( ')' )
+      endUse
 
 endClass
