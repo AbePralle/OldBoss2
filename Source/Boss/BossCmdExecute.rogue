@@ -6,23 +6,16 @@ module Boss
 #==============================================================================
 augment Cmd
   METHODS
-    #{
-    method execute( vm:BossVM )->BossValue
+    method execute( vm:BossVM )
       throw UnsupportedOperationError()
-    }#
 endAugment
 
 augment CmdStatements
   METHODS
-    #{
-    method execute( vm:BossVM )->BossValue
-      local result = UndefinedBossValue
+    method execute( vm:BossVM )
       forEach (statement in this)
-        result = statement.execute( vm )
-        if (vm.status) return result
+        statement.execute( vm )
       endForEach
-      return result
-    }#
 endAugment
 
 augment CmdArgs
@@ -36,10 +29,17 @@ endAugment
 augment CmdUnary
 endAugment
 
+augment CmdDiscardResult
+  METHODS
+    method execute( vm:BossVM )
+      operand.execute( vm )
+      vm.stack.remove_last
+endAugment
+
 augment BossCmdUnary
   METHODS
     #{
-    method execute( vm:BossVM )->BossValue
+    method execute( vm:BossVM )
       return $SYMBOL operand.execute( vm )
     }#
 endAugment
@@ -50,7 +50,7 @@ endAugment
 augment CmdBinaryOp
   METHODS
     #{
-    method execute( vm:BossVM )->BossValue
+    method execute( vm:BossVM )
       return left.execute( vm ) $SYMBOL right.execute( vm )
     }#
 endAugment
@@ -58,7 +58,7 @@ endAugment
 augment CmdLiteralUndefined
   METHODS
     #{
-    method execute( vm:BossVM )->BossValue
+    method execute( vm:BossVM )
       return UndefinedBossValue
     }#
 endAugment
@@ -66,23 +66,21 @@ endAugment
 augment CmdLiteralNull
   METHODS
     #{
-    method execute( vm:BossVM )->BossValue
+    method execute( vm:BossVM )
       return NullBossValue
     }#
 endAugment
 
 augment CmdLiteralInt32
   METHODS
-    #{
-    method execute( vm:BossVM )->BossValue
-      return value
-    }#
+    method execute( vm:BossVM )
+      vm.push( value )
 endAugment
 
 augment CmdLiteralString
   METHODS
     #{
-    method execute( vm:BossVM )->BossValue
+    method execute( vm:BossVM )
       return value
     }#
 endAugment
@@ -117,7 +115,7 @@ endAugment
 augment CmdCompareLT
   METHODS
     #{
-    method execute( vm:BossVM )->BossValue
+    method execute( vm:BossVM )
       return left.execute( vm ) < right.execute( vm )
     }#
 endAugment
@@ -128,7 +126,7 @@ endAugment
 augment CmdCompareGT
   METHODS
     #{
-    method execute( vm:BossVM )->BossValue
+    method execute( vm:BossVM )
       return left.execute( vm ) > right.execute( vm )
     }#
 endAugment
@@ -136,7 +134,7 @@ endAugment
 augment CmdBitwiseXor
   METHODS
     #{
-    method execute( vm:BossVM )->BossValue
+    method execute( vm:BossVM )
       return left.execute(vm)->Int64 ~ right.execute(vm)->Int64
     }#
 endAugment
@@ -144,7 +142,7 @@ endAugment
 augment CmdBitwiseOr
   METHODS
     #{
-    method execute( vm:BossVM )->BossValue
+    method execute( vm:BossVM )
       return left.execute(vm)->Int64 | right.execute(vm)->Int64
     }#
 endAugment
@@ -152,7 +150,7 @@ endAugment
 augment CmdBitwiseAnd
   METHODS
     #{
-    method execute( vm:BossVM )->BossValue
+    method execute( vm:BossVM )
       return left.execute(vm)->Int64 & right.execute(vm)->Int64
     }#
 endAugment
@@ -160,7 +158,7 @@ endAugment
 augment CmdLeftShift
   METHODS
     #{
-    method execute( vm:BossVM )->BossValue
+    method execute( vm:BossVM )
       return left.execute(vm)->Int64 :<<: right.execute(vm)->Int64
     }#
 endAugment
@@ -168,7 +166,7 @@ endAugment
 augment CmdRightShift
   METHODS
     #{
-    method execute( vm:BossVM )->BossValue
+    method execute( vm:BossVM )
       return left.execute(vm)->Int64 :>>: right.execute(vm)->Int64
     }#
 endAugment
@@ -176,7 +174,7 @@ endAugment
 augment CmdRightShiftX
   METHODS
     #{
-    method execute( vm:BossVM )->BossValue
+    method execute( vm:BossVM )
       return left.execute(vm)->Int64 :>>>: right.execute(vm)->Int64
     }#
 endAugment
@@ -184,7 +182,7 @@ endAugment
 augment CmdNegate
   METHODS
     #{
-    method execute( vm:BossVM )->BossValue
+    method execute( vm:BossVM )
       return -operand.execute( vm )->Real64
     }#
 endAugment
@@ -204,7 +202,7 @@ endAugment
 augment CmdBitwiseNot
   METHODS
     #{
-    method execute( vm:BossVM )->BossValue
+    method execute( vm:BossVM )
       return !operand.execute( vm )->Int64
     }#
 endAugment
@@ -213,12 +211,15 @@ augment CmdAssign
 endAugment
 
 augment CmdAccess
+  METHODS
+    method execute( vm:BossVM )
+      throw t.error( "[INTERNAL] Unresolved access: " + name )
 endAugment
 
 augment CmdContextRead
   METHODS
     #{
-    method execute( vm:BossVM )->BossValue
+    method execute( vm:BossVM )
       local value = context.execute( vm )
       local obj = value->Object as BossObject
       local type = vm.type_of( value )
@@ -260,7 +261,7 @@ endAugment
 augment CmdContextWrite
   METHODS
     #{
-    method execute( vm:BossVM )->BossValue
+    method execute( vm:BossVM )
       local new_value = this.new_value.execute( vm )
       local context_value = context.execute( vm )
       local obj = context_value->Object as BossObject
@@ -308,7 +309,7 @@ endAugment
 augment CmdThisPropertyRead
   METHODS
     #{
-    method execute( vm:BossVM )->BossValue
+    method execute( vm:BossVM )
       local obj = vm.stack[ vm.fp ].object as BossObject
       if (obj is null) return UndefinedBossValue
       return obj.properties[ property_index ]
@@ -318,7 +319,7 @@ endAugment
 augment CmdThisPropertyWrite
   METHODS
     #{
-    method execute( vm:BossVM )->BossValue
+    method execute( vm:BossVM )
       local result = new_value.execute( vm )
       local obj = vm.stack[ vm.fp ].object as BossObject
       if (obj) obj.properties[ property_index ] = result
@@ -329,7 +330,7 @@ endAugment
 augment CmdThisPropertyAddLiteralAndAssign
   METHODS
     #{
-    method execute( vm:BossVM )->BossValue
+    method execute( vm:BossVM )
       local obj = vm.stack[ vm.fp ].object as BossObject
       if (obj is null) return UndefinedBossValue
       local result = obj.properties[ property_index ] + delta
@@ -341,7 +342,7 @@ endAugment
 augment CmdThisPropertyPostIncrement
   METHODS
     #{
-    method execute( vm:BossVM )->BossValue
+    method execute( vm:BossVM )
       local obj = vm.stack[ vm.fp ].object as BossObject
       if (obj is null) return UndefinedBossValue
       local result = obj.properties[ property_index ]
@@ -353,7 +354,7 @@ endAugment
 augment CmdContextAddLiteralAndAssign
   METHODS
     #{
-    method execute( vm:BossVM )->BossValue
+    method execute( vm:BossVM )
       local value = context.execute( vm )
       local obj = value->Object as BossObject
       local type = vm.type_of( value )
@@ -382,7 +383,7 @@ endAugment
 augment CmdContextPostIncrement
   METHODS
     #{
-    method execute( vm:BossVM )->BossValue
+    method execute( vm:BossVM )
       local value = context.execute( vm )
       local obj = value->Object as BossObject
       local type = vm.type_of( value )
@@ -418,7 +419,7 @@ endAugment
 augment CmdContextCall
   METHODS
     #{
-    method execute( vm:BossVM )->BossValue
+    method execute( vm:BossVM )
       local value = context.execute( vm )
       local type = vm.type_of( value )
 
@@ -458,7 +459,7 @@ endAugment
 augment CmdGlobalCall
   METHODS
     #{
-    method execute( vm:BossVM )->BossValue
+    method execute( vm:BossVM )
       vm.push( vm.type_Global.get_singleton )
       if (args) args.execute( vm )
       m.call( arg_count )
@@ -469,7 +470,7 @@ endAugment
 augment CmdGlobalRead
   METHODS
     #{
-    method execute( vm:BossVM )->BossValue
+    method execute( vm:BossVM )
       return vm.global_vars[ index ]
     }#
 endAugment
@@ -477,7 +478,7 @@ endAugment
 augment CmdGlobalWrite
   METHODS
     #{
-    method execute( vm:BossVM )->BossValue
+    method execute( vm:BossVM )
       local result = new_value.execute( vm )
       vm.global_vars[ index ] = result
       return result
@@ -487,7 +488,7 @@ endAugment
 augment CmdLocalRead
   METHODS
     #{
-    method execute( vm:BossVM )->BossValue
+    method execute( vm:BossVM )
       return vm.stack[ vm.fp+index ]
     }#
 endAugment
@@ -495,7 +496,7 @@ endAugment
 augment CmdLocalAddLiteralAndAssign
   METHODS
     #{
-    method execute( vm:BossVM )->BossValue
+    method execute( vm:BossVM )
       local result = vm.stack[ vm.fp+index ] + delta
       vm.stack[ vm.fp+index ] = result
       return result
@@ -505,7 +506,7 @@ endAugment
 augment CmdLocalPostIncrement
   METHODS
     #{
-    method execute( vm:BossVM )->BossValue
+    method execute( vm:BossVM )
       local result = vm.stack[ vm.fp+index ]
       vm.stack[ vm.fp+index ] = result + delta
       return result
@@ -515,7 +516,7 @@ endAugment
 augment CmdLocalWrite
   METHODS
     #{
-    method execute( vm:BossVM )->BossValue
+    method execute( vm:BossVM )
       local result = new_value.execute( vm )
       vm.stack[ vm.fp+index ] = result
       return result
@@ -526,19 +527,20 @@ endAugment
 augment CmdGlobal
   METHODS
     #{
-    method execute( vm:BossVM )->BossValue
+    method execute( vm:BossVM )
+      m.global_types[ name ] = primitive_type
       if (initial_value)
         vm.global_vars[ index ] = initial_value.execute( vm )
       endIf
       return UndefinedBossValue
-    }#
+      }#
 endAugment
 
 
 augment CmdLocal
   METHODS
     #{
-    method execute( vm:BossVM )->BossValue
+    method execute( vm:BossVM )
       vm.stack[ vm.fp+index ] = initial_value.execute( vm )
       return UndefinedBossValue
     }#
@@ -547,7 +549,7 @@ endAugment
 augment CmdCreateObject
   METHODS
     #{
-    method execute( vm:BossVM )->BossValue
+    method execute( vm:BossVM )
       local obj = BossObject( type )
       local result = BossValue( obj )
       obj.initialize
@@ -563,7 +565,7 @@ endAugment
 augment CmdReturnUndefined
   METHODS
     #{
-    method execute( vm:BossVM )->BossValue
+    method execute( vm:BossVM )
       vm.status = BossVM.STATUS_RETURNING
       return UndefinedBossValue
     }#
@@ -572,7 +574,7 @@ endAugment
 augment CmdReturnValue
   METHODS
     #{
-    method execute( vm:BossVM )->BossValue
+    method execute( vm:BossVM )
       local result = result.execute( vm )
       vm.status = BossVM.STATUS_RETURNING
       return result
@@ -582,14 +584,14 @@ endAugment
 
 augment CmdPrintln
   METHODS
-    #{
-    method execute( vm:BossVM )->BossValue
+    method execute( vm:BossVM )
       if (args)
-        forEach (arg in args) print arg.execute( vm )
+        forEach (arg in args)
+          arg.execute( vm )
+          print vm.stack.remove_last
+        endForEach
       endIf
       println
-      return UndefinedBossValue
-    }#
 endAugment
 
 
@@ -600,7 +602,7 @@ endAugment
 augment CmdIf
   METHODS
     #{
-    method execute( vm:BossVM )->BossValue
+    method execute( vm:BossVM )
       if (condition.execute(vm)->Logical) return statements.execute( vm )
       return UndefinedBossValue
     }#
@@ -610,7 +612,7 @@ endAugment
 augment CmdIfElse
   METHODS
     #{
-    method execute( vm:BossVM )->BossValue
+    method execute( vm:BossVM )
       if (condition.execute(vm)->Logical) return statements.execute( vm )
       else                                return else_statements.execute( vm )
     }#
@@ -620,7 +622,7 @@ endAugment
 augment CmdWhile
   METHODS
     #{
-    method execute( vm:BossVM )->BossValue
+    method execute( vm:BossVM )
       local result = UndefinedBossValue
       while (condition.execute(vm)->Logical)
         result = statements.execute( vm )
@@ -633,7 +635,7 @@ endAugment
 augment CmdThis
   METHODS
     #{
-    method execute( vm:BossVM )->BossValue
+    method execute( vm:BossVM )
       return vm.stack[ vm.fp ]
     }#
 endAugment
@@ -642,8 +644,9 @@ endAugment
 augment CmdThisCall
   METHODS
     #{
-    method execute( vm:BossVM )->BossValue
+    method execute( vm:BossVM )
       return "argc:$" (vm.
     }#
 endAugment
 }#
+

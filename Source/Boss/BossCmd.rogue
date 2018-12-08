@@ -8,6 +8,21 @@ augment Cmd
   METHODS
     method exit_scope( scope:BossScope )
       noAction
+
+    method require_value( scope:BossScope )->Cmd
+      local this_type = this.type( scope )
+      if (this_type is null) throw t.error( "Value expected." )
+      return this
+
+    method require_type( scope:BossScope, type:BossType )->Cmd
+      local this_type = this.type( scope )
+      if (this_type is null or this_type is not type)
+        throw t.error( "Expression does not evaluate to required type $." (type) )
+      endIf
+      return this
+
+    method type( scope:BossScope )->BossType
+      return null
 endAugment
 
 augment CmdStatements
@@ -18,11 +33,18 @@ augment CmdStatements
       add( cmd )
 endAugment
 
+
 augment CmdArgs
 endAugment
 
 augment CmdUnary
 endAugment
+
+class CmdDiscardResult : CmdUnary
+  METHODS
+    method op->String
+      return "(Int32)"
+endClass
 
 class BossCmdUnary<<$SYMBOL>> : CmdUnary
   METHODS
@@ -49,6 +71,9 @@ class CmdLiteralInt32( t, value:Int32 ) : Cmd
   METHODS
     method to->String
       return value
+
+    method type( scope:BossScope )->BossType
+      return scope.vm.type_Int32
 endClass
 
 class CmdLiteralString( t, value:String ) : Cmd
@@ -193,20 +218,12 @@ class CmdAccess( t, context:Cmd, name:String, args:CmdArgs ) : Cmd
 endClass
 
 class CmdContextRead( t, context:Cmd, name:String, element_id=0:Int32 ) : Cmd
-  PROPERTIES
-    cached_property_slot = -1 : Int32
-    cached_method_slot   = -1 : Int32
-
   METHODS
     method to->String
       return name
 endClass
 
 class CmdContextWrite( t, context:Cmd, name:String, new_value:Cmd, element_id=0:Int32 ) : Cmd
-  PROPERTIES
-    cached_method_slot   = -1 : Int32
-    cached_property_slot = -1 : Int32
-
   METHODS
     method to->String
       return name
@@ -225,27 +242,18 @@ class CmdThisPropertyPostIncrement( t, property_index:Int32, delta:Real64 ) : Cm
 endClass
 
 class CmdContextAddLiteralAndAssign( t, context:Cmd, name:String, delta:Real64, element_id=0:Int32 ) : Cmd
-  PROPERTIES
-    cached_property_slot = -1 : Int32
-
   METHODS
     method to->String
       return name
 endClass
 
 class CmdContextPostIncrement( t, context:Cmd, name:String, delta:Real64, element_id=0:Int32 ) : Cmd
-  PROPERTIES
-    cached_property_slot = -1 : Int32
-
   METHODS
     method to->String
       return name
 endClass
 
 class CmdContextCall( t, context:Cmd, name:String, args:CmdArgs, method_id=0:Int32 ) : Cmd
-  PROPERTIES
-    cached_method_slot = -1
-
   METHODS
     method to->String
       return "$.$$" (context,name,args)
@@ -279,7 +287,7 @@ class CmdLocalWrite( t, name:String, index:Int32, new_value:Cmd ) : Cmd
 endClass
 
 
-class CmdGlobal( t, name:String, initial_value:Cmd, index=-1:Int32 ) : Cmd
+class CmdGlobal( t, name:String, initial_value:Cmd, primitive_type:Int32 ) : Cmd
 endClass
 
 

@@ -4,65 +4,32 @@ module Boss
 class BossModule
   PROPERTIES
     vm           : BossVM
-    t            : Token
     filepath     : String
     name         : String
-    type_Global  : BossType
-    m_on_launch  : BossMethod
-    m_on_execute : BossMethod
-
-    types       = LookupList<<BossType>>()
-
-    is_resolved : Logical
-    is_launched : Logical
+    global_types = LookupList<<Int32>>()
+    local_types  = LookupList<<Int32>>()
+    globals      = LookupList<<BossValue>>()
+    locals       = LookupList<<BossValue>>()  # subset of global_vars
+    statements   = CmdStatements()
+    is_resolved  = false
+    is_launched  = false
 
   METHODS
-    method init( vm, filepath )
-      t = Token( TokenType.EOI, filepath, 0, 0 )
-      type_Global = define_type( "Global" )
-      m_on_launch = type_Global.add_method( "on_launch" )
-      name = File.filename( filepath ).before_suffix( ".boss", &ignore_case )
-
-    method define_type( name:String )->BossType
-      return get_type( name ).[ is_defined = true ]
-
-    method execute->BossValue
-      launch
-      if (not m_on_execute) return UndefinedBossValue
-      #vm.push( type_Global )
-      #vm.invoke( m_on_execute )
-      #return vm.pop_value
-      return UndefinedBossValue
-
-    method get_type( name:String )->BossType
-      return get_type( t, name )
-
-    method get_type( type_t:Token, name:String )->BossType
-      local type = types[ name ]
-      if (type) return type
-      type = BossType( this, type_t, name )
-      types[ name ] = type
-      return type
+    method init( vm, filepath, name )
 
     method launch
       if (is_launched) return
+
       is_launched = true
-      #vm.push( type_Global )
-      #vm.invoke( m_on_launch )
+      if (statements.count)
+        statements.execute( vm )
+      endIf
 
     method resolve
       if (is_resolved) return
       is_resolved = true
-      (forEach in types).resolve
 
-      m_on_execute = type_Global.add_method( "on_execute" )
-      if (m_on_execute)
-        if (m_on_execute.return_type is not vm.boss_type_Value)
-          throw m_on_execute.t.error( "on_execute() return type must be Value" )
-        endIf
-      endIf
-
-
+      local scope = BossScope( this )
+      statements.resolve( scope )
 
 endClass
-

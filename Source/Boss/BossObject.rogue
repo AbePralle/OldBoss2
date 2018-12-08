@@ -1,33 +1,7 @@
 module Boss
 
-class BossObject : CustomBossValue
+class BossObject
   PROPERTIES
-    type       : BossType
-    properties : BossValue[]
 
   METHODS
-    method init( type )
-      properties = BossValue[]( type.properties.count, UndefinedBossValue )
-
-    method initialize
-      local vm = type.vm
-      local original_fp = vm.fp
-      vm.fp = vm.stack.count
-      vm.push( BossValue(this) )
-
-      forEach (p at index in type.properties)
-        if (p.initial_value)
-          local value = p.initial_value.execute( type.vm )
-          properties[ index ] = value
-        endIf
-      endForEach
-
-      vm.pop
-      vm.fp = original_fp
-
-    method to->BossValue
-      return BossValue( this )
-
-    method to->String
-      return type.name
 endClass

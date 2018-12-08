@@ -24,6 +24,7 @@ augment TokenType
   KEYWORD_FALSE       ( "false",      &is_keyword )
   KEYWORD_GLOBAL      ( "global",     &is_keyword )
   KEYWORD_IF          ( "if",         &is_keyword )
+  KEYWORD_IMPORT      ( "import",     &is_keyword )
   KEYWORD_LOCAL       ( "local",      &is_keyword )
   KEYWORD_METHOD      ( "method",     &is_keyword, &is_structural )
   KEYWORD_METHODS     ( "METHODS",    &is_keyword, &is_structural )

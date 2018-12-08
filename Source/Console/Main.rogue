@@ -9,7 +9,7 @@ class BossConsole
 
   METHODS
     method init
-      vm.execute( "[Console]", "3" )
+      vm.load( "[Console]", "import Test" )
       #{
       if (System.command_line_arguments.count)
         local literals = String[]

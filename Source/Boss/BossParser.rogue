@@ -8,9 +8,21 @@ class BossParser : Parser
   PROPERTIES
     scope            : BossScope
     parse_expression : ParseRule
+    built_in_types   = Table<<String,Int32>>()
 
   METHODS
     method init
+      built_in_types//Logical   = BossValue.TYPE_LOGICAL
+      built_in_types//Byte      = BossValue.TYPE_BYTE
+      built_in_types//Character = BossValue.TYPE_CHARACTER
+      built_in_types//Int32     = BossValue.TYPE_INT32
+      built_in_types//Int64     = BossValue.TYPE_INT64
+      built_in_types//Real32    = BossValue.TYPE_REAL32
+      built_in_types//Real64    = BossValue.TYPE_REAL64
+      built_in_types//XY        = BossValue.TYPE_XY
+      built_in_types//Box       = BossValue.TYPE_BOX
+      built_in_types//String    = BossValue.TYPE_STRING
+
       local rule = add( ParseRule("expression" ) )
 
       rule = add_nested( BinaryParseRule("compare") )
@@ -107,6 +119,11 @@ class BossParser : Parser
       rule.on( "undefined", <<CmdLiteralUndefined>> )
       rule.on_default( (parser) => throw parser.peek.error( "Syntax error: unexpected $." (parser.peek.description) ) )
 
+    method init( m:BossModule, source:String )
+      init
+      scope = BossScope( m )
+      set_source( m.filepath, source )
+
     method consume_end_commands->Logical
       local consumed_any = false
       while (consume_eols or consume(TokenType.SYMBOL_SEMICOLON)) consumed_any = true
@@ -170,6 +187,7 @@ class BossParser : Parser
 
     method parse_component->Logical
       consume_eols
+      #{
       if (next_is(TokenType.KEYWORD_CLASS))
         parse_class
         return true
@@ -179,18 +197,22 @@ class BossParser : Parser
         must_consume( TokenType.KEYWORD_END_ROUTINE )
         return true
       endIf
+      }#
       return false
 
     method parse_class
+      #{
       local t = read
       local name = read_identifier
       scope.this_type = scope.this_module.get_type( t, name )
       if (scope.this_type.is_defined) throw t.error( "A class named $ is already defined." )
       while (parse_category) noAction
       must_consume( TokenType.KEYWORD_END_CLASS )
+      }#
 
     method parse_category->Logical
       consume_eols
+      #{
       if (consume(TokenType.KEYWORD_PROPERTIES))
         while (parse_property) noAction
         return true
@@ -205,10 +227,12 @@ class BossParser : Parser
         return true
 
       endIf
+      }#
 
       return false
 
     method parse_property->Logical
+      #{
       consume_eols
       if (not next_is_identifier) return false
 
@@ -229,9 +253,12 @@ class BossParser : Parser
       endWhile
 
       return true
+      }#
+      return false
 
 
     method parse_method( t:Token )
+      #{
       local name = read_identifier
       local m = scope.this_type.add_method( t, name )
       if (consume(TokenType.SYMBOL_OPEN_PAREN))
@@ -260,14 +287,15 @@ class BossParser : Parser
       consume( TokenType.SYMBOL_COLON )   # optional
       scope.this_method = m
       parse_multi_line_statements( m.statements )
+      }#
 
-    method parse_type->BossType
+    method parse_type->BossTypeReference
       local t = peek
       local name = read_identifier
       while (consume(TokenType.SYMBOL_COLON_COLON))
         name += "::" + read_identifier
       endWhile
-      return CmdTypeReference( t, name )
+      return BossTypeReference( t, name )
 
     method parse_statements( statements:CmdStatements, end_type:TokenType )
       if (consume_eols)
@@ -352,8 +380,19 @@ class BossParser : Parser
         local name = read_identifier
         local expr : Cmd
         if (consume(TokenType.SYMBOL_EQUALS)) expr = parse_expression()
-        statements.add( CmdGlobal(t,name,expr) )
+        local type = BossValue.TYPE_UNDEFINED
+        if (consume(TokenType.SYMBOL_COLON)) type = parse_built_in_type
+        statements.add( CmdGlobal(t,name,expr,type) )
         return
+      endIf
+
+      if (consume(TokenType.KEYWORD_IMPORT))
+        if (next_is_identifier or next_is(TokenType.STRING))
+          scope.vm.import( t, read->String )
+          return
+        else
+          throw t.error( "Module name or filename expected." )
+        endIf
       endIf
 
       local expr = parse_expression()
@@ -362,6 +401,9 @@ class BossParser : Parser
       else
         statements.add( expr )
       endIf
+
+    method parse_built_in_type->Int32
+      return built_in_types[ read_identifier ]
 
     method parse_if( t:Token )->Cmd
       local condition = parse_expression()

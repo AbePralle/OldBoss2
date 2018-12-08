@@ -5,243 +5,94 @@ module Boss
 # BossVM
 #==============================================================================
 class BossVM
-  #{
-  ENUMERATE
-    STATUS_NORMAL    = 0
-    STATUS_RETURNING
-    }#
-
   PROPERTIES
-    module_list     = BossModule[]
-    module_lookup   = StringTable<<BossModule>>()
-    is_resolved     : Logical
+    is_resolved : Logical
 
-    default_module     : BossModule
-    default_type_Value : BossType
+    id_table    = LookupList<<Int32>>()
 
-    #{
-    stack = BossValue[]
-    fp    : Int32
+    modules     = LookupList<<BossModule>>()
+    module_list = BossModule[]
 
-    id_table     = LookupList<<Int32>>()
-    global_vars  = LookupList<<BossValue>>()
-    }#
+    internal_t  = Token( TokenType.EOI, "[BossVM]", 0, 0 )
+    type_Int32  : BossType
 
-    parser       = BossParser()
-
-    #{
-    last_error   : BossError
-
-    is_resolved  : Logical
-    }#
-
-    #types        = LookupList<<BossType>>()
-    #methods      = LookupList<<BossMethod>>()
-
-    #{
-    type_Object  : BossType
-    type_Global  : BossType
-
-    global_statements = CmdStatements()
-    m_on_launch      : BossMethod
-
-    locals      = BossLocal[]
-
-    this_type   : BossType
-    this_method : BossMethod
-
-    status = STATUS_NORMAL : Int32
-    }#
+    stack       = BossValue[]
 
   METHODS
     method init
-      default_module = add_module( "Default" )
-      default_type_Value = default_module.define_type( "Value" )
+      type_Int32 = define_type( "Int32" )
 
-    #{
-    method init
-      internal_t   = Token( TokenType.EOI, "[BossVM]", 0, 0 )
-
-      type_Object  = get_type( "Object" )
-      type_Global  = get_type( "Global" )
-
-      global_vars//Global = BossValue( BossObject(type_Global) )
-      clear_global_statements
-
-      id_init = id( "init" )
-      }#
-
-    method add_module( filepath:String )->BossModule
-      is_resolved = false
-      local m = BossModule( this, filepath )
+    method add_module( filepath:String, name:String )->BossModule
+      local m = BossModule( this, filepath, name )
       module_list.add( m )
       return m
 
-      #{
-    method call( m_id:Int32, argc:Int32 )->BossValue
-      local new_fp = stack.count - (argc+1)
-      local context = stack[ new_fp ]
-      local context_type : BossType
-      if (context.type == BossValue.TYPE_OBJECT)
-        local obj = context.object as BossObject
-        if (not obj) return UndefinedBossValue
-        context_type = obj.type
-        return UndefinedBossValue
+    method define_type( name:String )->BossType
+      return BossType( internal_t, name, BossType.IS_DEFINED )
+
+    method import( t:Token, filepath:String )->BossModule
+      local m = modules[ filepath ]
+      if (m) return m
+
+      local original_filepath = filepath
+
+      if (File.is_folder(filepath)) throw t.error( "Importing a folder is not yet supported." )
+
+      if (not filepath.ends_with(".boss",&ignore_case)) filepath += ".boss"
+      if (File.exists(filepath))
+        filepath = File.absolute_filepath( filepath )
       else
-        return UndefinedBossValue
+        throw t.error( "Can't find import: " + filepath )
       endIf
 
-    method clear_global_statements
-      m_on_launch = type_Global.get_method( "on_execute" )
-      m_on_launch.statements.clear
-      }#
+      m = add_module( filepath, File.filename(filepath).before_suffix(".boss",&ignore_case) )
+      modules[ original_filepath ] = m
+      modules[ filepath ] = m
 
-    method execute( filename:String, source:String )->BossValue
+      local source = File.load_as_string( filepath )
+      if (parse(m,source))
+        m.resolve
+        m.launch
+      endIf
+
+      return m
+
+    method load( filename:String, source:String )
       try
-        local m = add_module( filename )
+        local m = add_module( filename, filename.before_suffix(".boss",&ignore_case) )
         if (parse(m,source))
-          resolve
-          return m.execute
+          m.resolve
+          m.launch
         endIf
       catch (err:BossError)
         err.print
       endTry
-      return UndefinedBossValue
-
-      #{
-    method execute->BossValue
-      try
-        if (not is_resolved)
-          m_on_launch.statements.add( global_statements )
-          global_statements.clear
-          (forEach in types).resolve
-        endIf
-
-        stack.clear
-        push( BossValue(type_Global.get_singleton) )
-        m_on_launch.call( 0 )
-        clear_global_statements
-        return pop
-
-      catch ( err:BossError )
-        clear_global_statements
-        throw err
-
-      endTry
-
-    method find_local( name:String )->BossLocal?
-      forEach (v in locals)
-        if (v.name == name) return v
-      endForEach
-      return null
-
-    method get( name:String )->BossValue [macro]
-      return this.global_vars[ name ]
-      }#
-
-    method get_module( filepath:String )->BossModule
-      local m = module_lookup[ filepath ]
-      if (m) return m
-      m = add_module( filepath )
-      module_lookup[ filepath ] = m
-      return m
-
-      #{
-    method get_type( t:Token, name:String, attributes=0:Int32 )->BossType
-      local result = types[ name ]
-      if (result)
-        if (result.t is internal_t)
-          result.t = t
-          result.attributes = attributes
-        endIf
-      else
-        result = BossType( this, t, name, types.count, attributes )
-        types[ name ] = result
-      endIf
-      return result
-
-    method get_type( name:String, attributes=0:Int32 )->BossType
-      return get_type( internal_t, name, attributes )
-
-    method id( st:String )->Int32
-      local index = id_table.locate( st )
-      if (index.exists) return index.value
-
-      local result = id_table.count
-      id_table[ st ] = result
-      return result
-      }#
 
     method parse( m:BossModule, source:String )->Logical
       try
-        local scope = BossScope( m )
-        parser.scope = scope
-        parser.set_source( m.filepath, source )
-        loop
-          if (parser.parse_component) nextIteration
+        local parser = BossParser( m, source )
 
-          scope.this_type   = scope.this_module.type_Global
-          scope.this_method = scope.this_module.m_on_launch
-          if (parser.parse_multi_line_statements(scope.this_method.statements)) nextIteration
+        loop
+          #if (parser.parse_component) nextIteration
+
+          if (parser.parse_multi_line_statements(m.statements)) nextIteration
 
           escapeLoop
         endLoop
+
         return true
+
       catch (err:BossError)
         err.print
         return false
       endTry
 
-      #{
-    method parse( filepath:String )->Logical
-      return parse( filepath, File.load_as_string(filepath) )
+    method push( value:BossValue )
+      stack.add( value )
 
-    method parse( filepath:String, source:String )->Logical
-      is_resolved = false
-      type_Global.is_resolved = false
+    method pop_int32->Int32
+      if (stack.is_empty) return 0
+      return stack.remove_last->Int32
 
-      try
-        parser.set_source( filepath, source )
-        loop
-          if (parser.parse_component) nextIteration
-
-          this_method = m_on_launch
-          this_type = this_method.type_context
-          if (parser.parse_multi_line_statements(global_statements)) nextIteration
-
-          escapeLoop
-        endLoop
-        return true
-      catch (err:BossError)
-        err.print
-        return false
-      endTry
-
-    method peek->BossValue
-      if (not stack.count) throw BossError( "BossVM.peek() on empty stack." )
-      return stack.last
-
-    method push( value:BossValue ) [macro]
-      this.stack.add( value )
-
-    method pop->BossValue
-      if (not stack.count) throw BossError( "BossVM.pop() on empty stack." )
-      return stack.remove_last
-      }#
-
-    method resolve
-      if (is_resolved) return
-      is_resolved = true
-      (forEach in module_list).resolve
-
-      #{
-    method set( name:String, new_value:BossValue ) [macro]
-      this.global_vars[ name ] = new_value
-
-    method type_of( value:BossValue )->BossType
-      local obj = value.object as BossObject
-      if (obj) return obj.type
-      return null
-      }#
 endClass
 

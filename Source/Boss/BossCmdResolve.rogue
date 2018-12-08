@@ -31,7 +31,12 @@ augment CmdStatements
   METHODS
     method resolve( scope:BossScope )
       forEach (statement at index in this)
-        this[ index ] = statement.resolved( scope )
+        statement = statement.resolved( scope )
+        local type = statement.type( scope )
+        if (type)
+          statement = CmdDiscardResult( statement.t, statement ).resolved( scope )
+        endIf
+        this[ index ] = statement
       endForEach
       (forEach in this).exit_scope( scope )
 endAugment
@@ -40,7 +45,7 @@ augment CmdArgs
   METHODS
     method resolve( scope:BossScope )
       forEach (arg at index in this)
-        this[ index ] = arg.resolved( scope )
+        this[ index ] = arg.resolved( scope ).require_value( scope )
       endForEach
 endAugment
 
@@ -48,6 +53,13 @@ augment CmdUnary
   METHODS
     method resolved( scope:BossScope )->Cmd
       operand = operand.resolved( scope )
+      return this
+endAugment
+
+augment CmdDiscardResult
+  METHODS
+    method resolved( scope:BossScope )->Cmd
+      operand = operand.resolved( scope ).require_value( scope )
       return this
 endAugment
 
@@ -376,6 +388,14 @@ endAugment
 
 augment CmdGlobal
   METHODS
+    method resolved( scope:BossScope )->Cmd
+      local m = scope.this_module
+      if (m.globals.contains(name))
+        throw t.error( 'A global variable named "$" already exists.' (name) )
+      endIf
+      m.global_types[ name ] = primitive_type
+      return this
+
     #{
     method resolved( scope:BossScope )->Cmd
       if (index == -1)

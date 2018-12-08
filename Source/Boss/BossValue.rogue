@@ -3,7 +3,7 @@ module Boss
 
 class BossValue( type:Int32, value:Int64, object:Object ) [compound]
   ENUMERATE
-    FORMATTED = 1
+    FORMATTED   = 1
     OMIT_COMMAS = 2
 
     TYPE_UNDEFINED = 0
@@ -13,12 +13,15 @@ class BossValue( type:Int32, value:Int64, object:Object ) [compound]
     TYPE_CHARACTER
     TYPE_INT32
     TYPE_INT64
+    TYPE_REAL32
     TYPE_REAL64
     LAST_PRIMITIVE_TYPE
 
     FIRST_OBJECT_TYPE
-    TYPE_OBJECT
     TYPE_STRING
+    TYPE_BOSS_OBJECT
+    TYPE_BOSS_TYPE
+    TYPE_NATIVE_DATA
     TYPE_LIST
     TYPE_TABLE
     TYPE_XY
@@ -56,20 +59,29 @@ class BossValue( type:Int32, value:Int64, object:Object ) [compound]
       return BossValue( TYPE_INT64, value )
 
     method create( value:Object )->BossValue
-      if (value is null)           return NullBossValue
-      if (value instanceOf BossValue) return value as BossValue
-      if (value instanceOf String) return BossValue( TYPE_STRING, 0, value )
-      return BossValue( TYPE_OBJECT, value )
+      if (value is null)               return NullBossValue
+      if (value instanceOf BossValue)  return value as BossValue
+      if (value instanceOf BossObject) return BossValue( TYPE_BOSS_OBJECT, value )
+      if (value instanceOf String)     return BossValue( TYPE_STRING, value )
+      return BossValue( TYPE_NATIVE_DATA, value )
+
+    method create( value:BossObject )->BossValue
+      if (value is null) return NullBossValue
+      return BossValue( TYPE_BOSS_OBJECT, value )
+
+    method create( value:BossType )->BossValue
+      if (value is null) return NullBossValue
+      return BossValue( TYPE_BOSS_TYPE, value )
 
     method create( value:String )->BossValue
       if (value is null) return NullBossValue
       return BossValue( TYPE_STRING, value )
 
     method create( xy:XY )->BossValue
-      return BossValue( TYPE_XY, 0, BossXYValue(xy) )
+      return BossValue( TYPE_XY, BossXYValue(xy) )
 
     method create( box:Box )->BossValue
-      return BossValue( TYPE_BOX, 0, BossBoxValue(box) )
+      return BossValue( TYPE_BOX, BossBoxValue(box) )
 
     method create( value:BossValue )->BossValue
       return value
@@ -113,13 +125,13 @@ class BossValue( type:Int32, value:Int64, object:Object ) [compound]
       return BossJSON.load( file )
 
     method list->BossValue
-      return BossValue( TYPE_LIST, 0, BossValue[] )
+      return BossValue( TYPE_LIST, BossValue[] )
 
     method parse( json:String )->BossValue
       return BossJSON.parse( json )
 
     method table->BossValue
-      return BossValue( TYPE_TABLE, 0, StringTable<<BossValue>>() )
+      return BossValue( TYPE_TABLE, StringTable<<BossValue>>() )
 
     method operator?( value:BossValue )->Logical
       if (value.type == TYPE_NULL or value.type == TYPE_UNDEFINED) return false
@@ -204,17 +216,14 @@ class BossValue( type:Int32, value:Int64, object:Object ) [compound]
 
     method cloned->BossValue
       which (type)
-        case TYPE_STRING, TYPE_OBJECT
-          return BossValue( type, 0, object )
-
         case TYPE_LIST
-          return BossValue( TYPE_LIST, 0, (object as BossValue[]).cloned )
+          return BossValue( TYPE_LIST, (object as BossValue[]).cloned )
 
         case TYPE_TABLE
-          return BossValue( TYPE_TABLE, 0, (object as StringTable<<BossValue>>).cloned )
+          return BossValue( TYPE_TABLE, (object as StringTable<<BossValue>>).cloned )
 
         others
-          return UndefinedBossValue
+          return BossValue( type, value, object )
       endWhich
 
     method apply( fn:Function(BossValue)->BossValue )->BossValue
@@ -476,6 +485,9 @@ class BossValue( type:Int32, value:Int64, object:Object ) [compound]
         insert( other, before_index )
       endIf
 
+    method is_class->Logical [macro]
+      return (this.type == BossValue.TYPE_BOSS_TYPE)
+
     method is_complex->Logical
       if (not is_collection or count == 0) return false
       if (count > 1) return true
@@ -502,17 +514,20 @@ class BossValue( type:Int32, value:Int64, object:Object ) [compound]
     method is_logical->Logical [macro]
       return this.type == BossValue.TYPE_LOGICAL
 
-    method is_null->Logical [macro]
-      return this.type == BossValue.TYPE_NULL
+    method is_native_data->Logical [macro]
+      return this.type == BossValue.TYPE_NATIVE_DATA
 
     method is_non_null->Logical [macro]
       return this.type != BossValue.TYPE_NULL
 
+    method is_null->Logical [macro]
+      return this.type == BossValue.TYPE_NULL
+
     method is_number->Logical
-      return select(type){ TYPE_BYTE,TYPE_CHARACTER,TYPE_REAL64,TYPE_INT32,TYPE_INT64:true || false }
+      return (type >= TYPE_BYTE and type <= TYPE_REAL64)
 
     method is_object->Logical [macro]
-      return this.type == BossValue.TYPE_OBJECT
+      return this.type == BossValue.TYPE_BOSS_OBJECT
 
     method is_real64->Logical [macro]
       return this.type == BossValue.TYPE_REAL64
@@ -686,8 +701,8 @@ class BossValue( type:Int32, value:Int64, object:Object ) [compound]
           if (object is other.object) return true
 
           which (type)
-            case TYPE_OBJECT
-              return object == other.object
+            case TYPE_BOSS_OBJECT
+              return object == other.object  # TODO: change to obj1.equals(obj2)
             case TYPE_STRING
               return (object as String) == (other.object as String)
             case TYPE_LIST
@@ -700,6 +715,8 @@ class BossValue( type:Int32, value:Int64, object:Object ) [compound]
               return (xy.x == other_xy.x and xy.y == other_xy.y)
             case TYPE_BOX
               return (this->Box == other->Box)
+            case TYPE_NATIVE_DATA
+              return object == other.object
             others
               return false
           endWhich
@@ -750,10 +767,12 @@ class BossValue( type:Int32, value:Int64, object:Object ) [compound]
           if (object is other.object) return false
 
           which (type)
-            case TYPE_OBJECT
-              return object_id < other.object_id
+            case TYPE_BOSS_OBJECT
+              return object_id < other.object_id  # TODO: change to obj1.compare_to(obj2) < 0
             case TYPE_STRING
               return (object as String) < (other.object as String)
+            case TYPE_NATIVE_DATA
+              return object_id < other.object_id
             others
               return false
           endWhich
@@ -1091,6 +1110,12 @@ class BossValue( type:Int32, value:Int64, object:Object ) [compound]
     method sorted( compare_fn:(Function(a:BossValue,b:BossValue)->Logical) )->BossValue
       return this.cloned.[ sort(compare_fn) ]
 
+    method to->BossObject
+      return (object as BossObject)
+
+    method to->BossType
+      return (object as BossType)
+
     method to->Byte
       if (type == TYPE_REAL64)        return this->Real64->Byte
       if (type < LAST_PRIMITIVE_TYPE) return value->Byte
@@ -1126,9 +1151,8 @@ class BossValue( type:Int32, value:Int64, object:Object ) [compound]
 
     method to->Object
       which (type)
-        case TYPE_OBJECT, TYPE_STRING
+        case TYPE_NATIVE_DATA
           return object
-
         others
           return null
       endWhich
@@ -1161,21 +1185,22 @@ class BossValue( type:Int32, value:Int64, object:Object ) [compound]
 
     method to->String
       which (type)
-        case TYPE_UNDEFINED: return "undefined"
-        case TYPE_NULL:      return "null"
-        case TYPE_LOGICAL:   return value->Logical
-        case TYPE_BYTE:      return value->Byte
-        case TYPE_CHARACTER: return value->Character
-        case TYPE_INT32:     return value->Int32
-        case TYPE_REAL64:    return _real64_to_string(this->Real64)
-        case TYPE_INT64:     return value->String
-        case TYPE_XY:        return this->XY->String
-        case TYPE_BOX:       return this->Box->String
-        case TYPE_OBJECT:    return object->String
-        case TYPE_STRING:    return object->String
-        case TYPE_LIST:      return (object as BossValue[])->String
-        case TYPE_TABLE:     return (object as StringTable<<BossValue>>)->String
-        others:              throw  UnsupportedOperationError()
+        case TYPE_UNDEFINED:   return "undefined"
+        case TYPE_NULL:        return "null"
+        case TYPE_LOGICAL:     return value->Logical
+        case TYPE_BYTE:        return value->Byte
+        case TYPE_CHARACTER:   return value->Character
+        case TYPE_INT32:       return value->Int32
+        case TYPE_REAL64:      return _real64_to_string(this->Real64)
+        case TYPE_INT64:       return value->String
+        case TYPE_XY:          return this->XY->String
+        case TYPE_BOX:         return this->Box->String
+        case TYPE_BOSS_OBJECT: return object->String
+        case TYPE_NATIVE_DATA: return object->String
+        case TYPE_STRING:      return object->String
+        case TYPE_LIST:        return (object as BossValue[])->String
+        case TYPE_TABLE:       return (object as StringTable<<BossValue>>)->String
+        others:                throw  UnsupportedOperationError()
       endWhich
 
     method to->BossValue
@@ -1208,7 +1233,7 @@ class BossValue( type:Int32, value:Int64, object:Object ) [compound]
           if (real.fractional_part) buffer.print( real )
           else                      buffer.print( real, 0 )  # omit the ".0"
           return buffer
-        case TYPE_OBJECT, TYPE_STRING
+        case TYPE_BOSS_OBJECT, TYPE_STRING
           return to_json( this->String, buffer, flags )
         case TYPE_LIST
           local pretty_print = ((flags & FORMATTED) and (is_complex or (flags & OMIT_COMMAS)))
@@ -1376,5 +1401,6 @@ routine NullBossValue->BossValue
 endRoutine
 
 class BossXYValue( value:XY );
+
 class BossBoxValue( value:Box );
 

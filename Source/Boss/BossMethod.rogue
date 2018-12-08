@@ -2,6 +2,7 @@ module Boss
   uses ParseKit<<Boss>>
 
 class BossMethod
+  #{
   PROPERTIES
     vm           : BossVM
     type_context : BossType
@@ -101,5 +102,6 @@ class BossMethod
         endForEach
         builder.print( ')' )
       endUse
+      }#
 
 endClass

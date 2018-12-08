@@ -2,106 +2,16 @@ module Boss
   uses ParseKit<<Boss>>
 
 class BossType
+  DEFINITIONS
+    IS_DEFINED = 1
+
   PROPERTIES
-    vm             : BossVM
-    module_context : BossModule
-    t              : Token
-    name           : String
-    #global_index   : Int32
-    attributes     : Int32
-
-    is_defined     : Logical
-    is_resolved    : Logical
-
-    #{
-    _singleton    : BossObject
-    }#
-
-    properties           = LookupList<<BossProperty>>()
-    methods              = BossMethod[]
-    methods_by_signature = LookupList<<BossMethod>>()
-    methods_by_name      = LookupList<<BossMethod[]>>()
+    t          : Token
+    name       : String
+    attributes : Int32
 
   METHODS
-    method init( module_context, t, name, attributes=0 )
-      vm = module_context.vm
-      #global_index = vm.types.count
-      #vm.types[ name ] = this
-
-    #{
-    method init( vm, t, name, global_index, attributes=0 )
-      }#
-
-    method add_method( name:String )->BossMethod
-      return add_method( t, name )
-
-    method add_method( t:Token, name:String )->BossMethod
-      return add_method( BossMethod(this,t,name) )
-
-    method add_method( m:BossMethod )->BossMethod
-      local list = methods_by_name[ m.name ]
-      if (not list)
-        list = BossMethod[]
-        methods_by_name[ m.name ] = list
-      endIf
-      list.add( m )
-      methods.add( m )
-      return m
-
-      #{
-    method find_property( name:String )->BossProperty
-      local p_index = locate_property( vm.id(name) )
-      if (p_index == -1) return null
-      return properties[ p_index ]
-      }#
-
-      #{
-    method get_singleton->BossObject
-      if (_singleton is null) _singleton = BossObject( this )
-      return _singleton
-
-    method locate_method( method_id:Int32 )->Int32
-      # Returns -1 if not found
-      forEach (m at index in methods)
-        if (m.id == method_id) return index
-      endForEach
-      return -1
-
-    method locate_property( property_id:Int32 )->Int32
-      # Returns -1 if not found
-      forEach (p at index in properties)
-        if (p.id == property_id) return index
-      endForEach
-      return -1
-      }#
-
-    method resolve
-      if (is_resolved) return
-      is_resolved = true
-
-      if (not is_defined) throw t.error( ''Reference to undefined type "$".'' (name) )
-
-      #{
-      local locals = vm.locals
-      if (locals.count) vm.locals = BossLocal[]
-
-      local original_type = vm.this_type
-      vm.this_type = this
-
-      forEach (p in properties)
-        if (p.initial_value) p.initial_value = p.initial_value.resolved( vm )
-      endForEach
-      }#
-      (forEach in methods).resolve
-
-      #{
-      vm.this_type = original_type
-
-      vm.locals = locals
-      }#
-
-    method to->String
-      return name
+    method init( t, name, attributes=0 )
 endClass
 
 class BossTypeReference( t:Token, name:String )
