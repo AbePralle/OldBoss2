@@ -1,6 +1,7 @@
 module Boss
   uses ParseKit<<Boss>>
 
+  #{
 class BossLocal( t:Token, name:String, initial_value:Cmd, type_ref:BossTypeReference, index:Int32 )
   PROPERTIES
 
@@ -8,3 +9,4 @@ class BossLocal( t:Token, name:String, initial_value:Cmd, type_ref:BossTypeRefer
     method to->String
       return "[$] $:$" (index,name,type)
 endClass
+}#

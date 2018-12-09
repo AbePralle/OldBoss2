@@ -6,17 +6,35 @@ class BossModule
     vm           : BossVM
     filepath     : String
     name         : String
+
+    is_prepared  = false
+
+  #{
     global_types = LookupList<<Int32>>()
     local_types  = LookupList<<Int32>>()
     globals      = LookupList<<BossValue>>()
     locals       = LookupList<<BossValue>>()  # subset of global_vars
+    }#
+
+    types = LookupList<<BossType>>()
+
     statements   = CmdStatements()
-    is_resolved  = false
-    is_launched  = false
 
   METHODS
     method init( vm, filepath, name )
 
+    method get_type( t:Token, name:String, attributes=0:Int32 )->BossType
+      local type = types[ name ]
+      if (type)
+        if (attributes) type.attributes |= attributes
+        return type
+      endIf
+
+      type = BossType( vm, t, name, attributes )
+      types[ name ] = type
+      return type
+
+      #{
     method launch
       if (is_launched) return
 
@@ -24,10 +42,11 @@ class BossModule
       if (statements.count)
         statements.execute( vm )
       endIf
+      }#
 
-    method resolve
-      if (is_resolved) return
-      is_resolved = true
+    method prepare
+      if (is_prepared) return
+      is_prepared = true
 
       local scope = BossScope( this )
       statements.resolve( scope )

@@ -5,10 +5,12 @@ class BossScope
   PROPERTIES
     vm          : BossVM
     this_module : BossModule
-    this_type   : BossType
-    this_method : BossMethod
+    #this_type   : BossType
+    #this_method : BossMethod
 
   METHODS
+    method init( vm )
+
     method init( this_module )
       vm = this_module.vm
 

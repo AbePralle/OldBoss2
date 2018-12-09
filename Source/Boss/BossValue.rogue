@@ -1,6 +1,7 @@
 module Boss
   uses Geometry [export]
 
+  #{
 class BossValue( type:Int32, value:Int64, object:Object ) [compound]
   ENUMERATE
     FORMATTED   = 1
@@ -1404,3 +1405,4 @@ class BossXYValue( value:XY );
 
 class BossBoxValue( value:Box );
 
+  }#

@@ -6,30 +6,46 @@ module Boss
 #==============================================================================
 class BossVM
   PROPERTIES
-    is_resolved : Logical
+    stack = Real64[]
 
-    id_table    = LookupList<<Int32>>()
+    is_prepared : Logical
 
     modules     = LookupList<<BossModule>>()
     module_list = BossModule[]
 
-    internal_t  = Token( TokenType.EOI, "[BossVM]", 0, 0 )
-    type_Int32  : BossType
+    module_boss : BossModule
 
-    stack       = BossValue[]
+    internal_t  = Token( TokenType.EOI, "[BossVM]", 0, 0 )
+
+    type_Int32  : BossType
 
   METHODS
     method init
       type_Int32 = define_type( "Int32" )
 
-    method add_module( filepath:String, name:String )->BossModule
+    method create_module( filepath:String, name:String )->BossModule
+      is_prepared = false
       local m = BossModule( this, filepath, name )
       module_list.add( m )
       return m
 
     method define_type( name:String )->BossType
-      return BossType( internal_t, name, BossType.IS_DEFINED )
+      if (not module_boss)
+        module_boss = create_module( "boss", "" )
+        modules//boss = module_boss
+      endIf
+      return module_boss.get_type( internal_t, name, BossType.IS_DEFINED )
 
+    #method execute( command:String )
+
+    method execute_int32( command:String )->Int32
+      local expression = parse_expression( "[Native Code]", command ).require_type( BossScope(this), type_Int32 )
+      prepare
+      expression = expression.resolved( BossScope(this) )
+      expression.execute( this )
+      return pop_int32
+
+      #{
     method import( t:Token, filepath:String )->BossModule
       local m = modules[ filepath ]
       if (m) return m
@@ -45,7 +61,7 @@ class BossVM
         throw t.error( "Can't find import: " + filepath )
       endIf
 
-      m = add_module( filepath, File.filename(filepath).before_suffix(".boss",&ignore_case) )
+      m = create_module( filepath, File.filename(filepath).before_suffix(".boss",&ignore_case) )
       modules[ original_filepath ] = m
       modules[ filepath ] = m
 
@@ -56,43 +72,34 @@ class BossVM
       endIf
 
       return m
+      }#
 
-    method load( filename:String, source:String )
-      try
-        local m = add_module( filename, filename.before_suffix(".boss",&ignore_case) )
-        if (parse(m,source))
-          m.resolve
-          m.launch
-        endIf
-      catch (err:BossError)
-        err.print
-      endTry
+    method parse( filename:String, source:String )->BossModule
+      local m = create_module( filename, filename.before_suffix(".boss",&ignore_case) )
+      parse( m, source )
+      return m
 
-    method parse( m:BossModule, source:String )->Logical
-      try
-        local parser = BossParser( m, source )
+    method parse( m:BossModule, source:String )
+      BossParser().parse( m, source )
 
-        loop
-          #if (parser.parse_component) nextIteration
+    method parse_expression( filename:String, source:String )->Cmd
+      return BossParser().[ set_source(filename,source) ].parse_expression()
 
-          if (parser.parse_multi_line_statements(m.statements)) nextIteration
+    method push( value:Int32 ) [macro]
+      this.stack.add( value )
 
-          escapeLoop
-        endLoop
-
-        return true
-
-      catch (err:BossError)
-        err.print
-        return false
-      endTry
-
+      #{
     method push( value:BossValue )
       stack.add( value )
+      }#
 
-    method pop_int32->Int32
-      if (stack.is_empty) return 0
-      return stack.remove_last->Int32
+    method pop_int32->Int32 [macro]
+      return this.stack.remove_last->Int32
 
+    method prepare
+      if (is_prepared) return
+
+      is_prepared = true
+      (forEach in module_list).prepare
 endClass
 

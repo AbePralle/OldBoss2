@@ -1,5 +1,6 @@
 module Boss
 
+#{
 class BossJSON
   GLOBAL METHODS
     method load( file:File )->BossValue
@@ -303,3 +304,4 @@ class BossJSONParser
 
 endClass
 
+}#

@@ -6,14 +6,18 @@ class BossType
     IS_DEFINED = 1
 
   PROPERTIES
+    vm         : BossVM
     t          : Token
     name       : String
     attributes : Int32
 
   METHODS
-    method init( t, name, attributes=0 )
+    method init( vm, t, name, attributes=0 )
+
+    method to->String
+      return name
 endClass
 
-class BossTypeReference( t:Token, name:String )
-endClass
+#class BossTypeReference( t:Token, name:String )
+#endClass
 

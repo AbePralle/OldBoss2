@@ -1,6 +1,7 @@
 module Boss
   uses ParseKit<<Boss>>
 
+
 #==============================================================================
 # Cmd Nodes (Parse Tree / AST)
 #==============================================================================
@@ -74,10 +75,10 @@ augment CmdBinary
     method resolved( scope:BossScope )->Cmd
       left = left.resolved( scope )
       right = right.resolved( scope )
-      return resolve_op
+      return resolve_op( scope, left.require_type(scope), right.require_type(scope) )
 
-    method resolve_op->Cmd
-      return this
+    method resolve_op( scope:BossScope, left_type:BossType, right_type:BossType )->Cmd
+      throw t.error( "[Internal] $.resolve_op() not defined." (type_name) )
 endAugment
 
 augment CmdBinaryOp
@@ -102,6 +103,21 @@ augment CmdLiteralString
 endAugment
 
 augment CmdAdd
+  METHODS
+    method resolve_op( scope:BossScope, left_type:BossType, right_type:BossType )->Cmd
+      require left_type is right_type
+      require left_type is scope.vm.type_Int32
+      return CmdAddInt32( t, left, right ).resolved( scope )
+      return this
+endAugment
+
+augment CmdAddInt32
+  METHODS
+    method resolved( scope:BossScope )->Cmd
+      if (left instanceOf CmdLiteralInt32 and right instanceOf CmdLiteralInt32)
+        return CmdLiteralInt32( t, (left as CmdLiteralInt32).value + (right as CmdLiteralInt32).value )
+      endIf
+      return this
 endAugment
 
 augment CmdSubtract
@@ -496,3 +512,4 @@ augment CmdThisCall
   METHODS
 endAugment
 }#
+

@@ -1,6 +1,7 @@
 module Boss
   uses ParseKit<<Boss>>
 
+  #{
 class BossMethod
   #{
   PROPERTIES
@@ -105,3 +106,4 @@ class BossMethod
       }#
 
 endClass
+}#
