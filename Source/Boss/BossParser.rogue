@@ -112,6 +112,10 @@ class BossParser : Parser
       while (consume_eols or consume(TokenType.SYMBOL_SEMICOLON)) consumed_any = true
       return consumed_any
 
+    method must_consume_end_command
+      if (next_is_end_command or next_is_eol or next_is(TokenType.EOI)) read; return
+      throw peek.error( "';' or End of Line expected." )
+
     method must_consume_eols
       must_consume( TokenType.EOL )
       while (consume(TokenType.EOL)) noAction
@@ -309,7 +313,7 @@ class BossParser : Parser
       local found_any = false
       while (next_is_statement)
         parse_statement( statements, &allow_control_structures )
-        consume_end_commands
+        must_consume_end_command
         found_any = true
       endWhile
       return found_any
@@ -317,7 +321,7 @@ class BossParser : Parser
     method parse_single_line_statements( statements:CmdStatements )
       while (next_is_statement)
         parse_statement( statements, &!allow_control_structures )
-        if (not consume(TokenType.SYMBOL_SEMICOLON)) return
+        if (not consume(TokenType.SYMBOL_SEMICOLON)) must_consume_end_command; return
         while (consume(TokenType.SYMBOL_SEMICOLON)) noAction
 
         # Don't let a trailing ';' act as a next-line continuation.

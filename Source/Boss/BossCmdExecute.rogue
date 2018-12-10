@@ -585,13 +585,17 @@ endAugment
 augment CmdPrintln
   METHODS
     method execute( vm:BossVM )
-      if (args)
-        forEach (arg in args)
-          arg.execute( vm )
-          print vm.stack.remove_last
-        endForEach
+      if (resolved_args)
+        (forEach in resolved_args).execute( vm )
       endIf
       println
+endAugment
+
+augment CmdPrintInt32
+  METHODS
+    method execute( vm:BossVM )
+      operand.execute( vm )
+      print vm.pop_int32
 endAugment
 
 

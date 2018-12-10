@@ -9,8 +9,6 @@ class BossScope
     #this_method : BossMethod
 
   METHODS
-    method init( vm )
-
     method init( this_module )
       vm = this_module.vm
 

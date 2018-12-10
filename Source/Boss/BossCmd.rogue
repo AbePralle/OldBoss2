@@ -351,6 +351,11 @@ endClass
 
 
 class CmdPrintln( t, args:CmdArgs ) : Cmd
+  PROPERTIES
+    resolved_args : Cmd[]
+endClass
+
+class CmdPrintInt32( t, operand:Cmd ) : Cmd
 endClass
 
 

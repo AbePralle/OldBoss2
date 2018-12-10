@@ -10,7 +10,7 @@ class BossConsole
   METHODS
     method init
       try
-        trace vm.execute_int32( "3+4" )
+        vm.execute( "println 2, 3, 4, 6" )
       catch (err:BossError)
         err.print
       endTry

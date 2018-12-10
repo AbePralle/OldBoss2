@@ -21,7 +21,7 @@ class BossVM
 
   METHODS
     method init
-      type_Int32 = define_type( "Int32" )
+      type_Int32 = define_type( "Int32", BossType.IS_PRIMITIVE )
 
     method create_module( filepath:String, name:String )->BossModule
       is_prepared = false
@@ -29,20 +29,50 @@ class BossVM
       module_list.add( m )
       return m
 
-    method define_type( name:String )->BossType
+    method define_type( name:String, attributes=0:Int32, data_count=1:Int32 )->BossType
+      attributes |= BossType.IS_DEFINED
       if (not module_boss)
-        module_boss = create_module( "boss", "" )
+        module_boss = create_module( "[BossVM]", "boss" )
         modules//boss = module_boss
       endIf
-      return module_boss.get_type( internal_t, name, BossType.IS_DEFINED )
+      local type = module_boss.get_type( internal_t, name, BossType.IS_DEFINED )
+      type.data_count = data_count
+      return type
 
-    #method execute( command:String )
+    method execute( command:String )
+      local scope = BossScope( module_boss )
 
-    method execute_int32( command:String )->Int32
-      local expression = parse_expression( "[Native Code]", command ).require_type( BossScope(this), type_Int32 )
+      local statements = CmdStatements()
+      BossParser().[ set_source("[Native Code]",command) ].parse_multi_line_statements( statements )
+
       prepare
-      expression = expression.resolved( BossScope(this) )
+      statements.resolve( scope )
+      statements.execute( this )
+
+    method evaluate( command:String, required_type:BossType )
+      # Result is left on stack
+      local scope = BossScope( module_boss )
+
+      local statements = CmdStatements()
+      BossParser().[ set_source("[Native Code]",command) ].parse_multi_line_statements( statements )
+
+      if (statements.is_empty)
+        local t = Token( TokenType.EOI, "[Native Code]", 0, 0 )
+        throw t.error( "Expression does not evaluate to required type $." (required_type) )
+      elseIf (statements.count > 1)
+        local t = Token( TokenType.EOI, "[Native Code]", 0, 0 )
+        throw t.error( "Cannot evaluate() multiple commands." )
+      endIf
+
+      local expression = statements.remove_last
+
+      expression.require_type( scope, required_type )
+      prepare
+      expression = expression.resolved( scope )
       expression.execute( this )
+
+    method evaluate_int32( command:String )->Int32
+      evaluate( command, type_Int32 )
       return pop_int32
 
       #{

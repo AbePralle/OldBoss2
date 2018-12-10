@@ -468,7 +468,18 @@ endAugment
 augment CmdPrintln
   METHODS
     method resolved( scope:BossScope )->Cmd
-      if (args) args.resolve( scope )
+      if (args)
+        args.resolve( scope )
+        resolved_args = Cmd[]( args.count )
+        forEach (arg in args)
+          local type = arg.require_type( scope )
+          which (type)
+            case scope.vm.type_Int32: resolved_args.add( CmdPrintInt32(t,arg) )
+            others:                   throw t.error( "[Internal] TODO: CmdPrintln($)" (type) )
+          endWhich
+        endForEach
+        args = null
+      endIf
       return this
 endAugment
 
