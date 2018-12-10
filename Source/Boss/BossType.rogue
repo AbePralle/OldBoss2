@@ -11,7 +11,7 @@ class BossType
     t          : Token
     name       : String
     attributes : Int32
-    data_count : Int32
+    slot_count : Int32
 
   METHODS
     method init( vm, t, name, attributes=0 )

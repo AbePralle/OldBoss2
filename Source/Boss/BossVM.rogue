@@ -6,7 +6,7 @@ module Boss
 #==============================================================================
 class BossVM
   PROPERTIES
-    stack = Real64[]
+    stack = Int64[]
 
     is_prepared : Logical
 
@@ -23,20 +23,20 @@ class BossVM
     method init
       type_Int32 = define_type( "Int32", BossType.IS_PRIMITIVE )
 
-    method create_module( filepath:String, name:String )->BossModule
+    method create_module( name:String, filepath:String )->BossModule
       is_prepared = false
-      local m = BossModule( this, filepath, name )
+      local m = BossModule( this, name, filepath )
       module_list.add( m )
       return m
 
-    method define_type( name:String, attributes=0:Int32, data_count=1:Int32 )->BossType
+    method define_type( name:String, attributes=0:Int32, slot_count=1:Int32 )->BossType
       attributes |= BossType.IS_DEFINED
       if (not module_boss)
-        module_boss = create_module( "[BossVM]", "boss" )
+        module_boss = create_module( "boss", "[BossVM]" )
         modules//boss = module_boss
       endIf
       local type = module_boss.get_type( internal_t, name, BossType.IS_DEFINED )
-      type.data_count = data_count
+      type.slot_count = slot_count
       return type
 
     method execute( command:String )
@@ -75,37 +75,38 @@ class BossVM
       evaluate( command, type_Int32 )
       return pop_int32
 
-      #{
-    method import( t:Token, filepath:String )->BossModule
-      local m = modules[ filepath ]
+    method load( filepath:String )->BossModule
+      return load( internal_t, filepath )
+
+    method load( t:Token, filepath:String )->BossModule
+      local module_name = filepath
+      local m = modules[ module_name ]
       if (m) return m
 
-      local original_filepath = filepath
-
-      if (File.is_folder(filepath)) throw t.error( "Importing a folder is not yet supported." )
-
-      if (not filepath.ends_with(".boss",&ignore_case)) filepath += ".boss"
-      if (File.exists(filepath))
-        filepath = File.absolute_filepath( filepath )
+      if (module_name.ends_with(".boss",&ignore_case))
+        module_name = module_name.before_suffix( ".boss", &ignore_case )
       else
-        throw t.error( "Can't find import: " + filepath )
+        filepath = filepath + ".boss"
       endIf
 
-      m = create_module( filepath, File.filename(filepath).before_suffix(".boss",&ignore_case) )
-      modules[ original_filepath ] = m
+      if (not File.exists(filepath)) throw t.error( "No such file: " + filepath )
+
+      local abs_filepath = File.absolute_filepath( filepath )
+      m = modules[ abs_filepath ]
+      if (m) return m
+
+      m = create_module( module_name, abs_filepath )
+      modules[ module_name ] = m
       modules[ filepath ] = m
+      modules[ abs_filepath ] = m
 
-      local source = File.load_as_string( filepath )
-      if (parse(m,source))
-        m.resolve
-        m.launch
-      endIf
+      parse( m, File.load_as_string(abs_filepath) )
 
       return m
-      }#
+
 
     method parse( filename:String, source:String )->BossModule
-      local m = create_module( filename, filename.before_suffix(".boss",&ignore_case) )
+      local m = create_module( filename.before_suffix(".boss",&ignore_case), filename )
       parse( m, source )
       return m
 
@@ -122,6 +123,14 @@ class BossVM
     method push( value:BossValue )
       stack.add( value )
       }#
+
+    method pop_and_add( slot_count:Int32, list:Int64[] )
+      if (slot_count == 1)
+        list.add( stack.remove_last )
+      else
+        local i1 = stack.count - slot_count
+        forEach (delta in 0..<slot_count) list.add( stack[i1+delta] )
+      endIf
 
     method pop_int32->Int32 [macro]
       return this.stack.remove_last->Int32

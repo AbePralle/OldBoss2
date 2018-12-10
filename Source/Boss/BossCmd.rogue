@@ -294,7 +294,10 @@ class CmdGlobalCall( t, m:BossMethod, args:CmdArgs ) : Cmd
 endClass
 }#
 
-class CmdGlobalRead( t, name:String, index:Int32 ) : Cmd
+class CmdGlobalRead( t, v:BossVar ) : Cmd
+  METHODS
+    method type( scope:BossScope )->BossType
+      return v.type
 endClass
 
 class CmdGlobalWrite( t, name:String, index:Int32, new_value:Cmd ) : Cmd
@@ -313,11 +316,11 @@ class CmdLocalWrite( t, name:String, index:Int32, new_value:Cmd ) : Cmd
 endClass
 
 
-class CmdGlobal( t, name:String, initial_value:Cmd, primitive_type:Int32 ) : Cmd
+class CmdGlobalDeclaration( t, name:String, initial_value:Cmd, of_type:BossType ) : Cmd
 endClass
 
 
-class CmdLocal( t, name:String, initial_value:Cmd, index=-1:Int32 ) : Cmd
+class CmdLocalDeclaration( t, name:String, initial_value:Cmd, of_type:BossType ) : Cmd
   METHODS
     #{
     method exit_scope( vm:BossVM )

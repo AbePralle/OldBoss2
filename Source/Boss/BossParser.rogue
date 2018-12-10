@@ -287,15 +287,10 @@ class BossParser : Parser
       parse_multi_line_statements( m.statements )
       }#
 
-      #{
-    method parse_type->BossTypeReference
+    method parse_type->BossType
       local t = peek
       local name = read_identifier
-      while (consume(TokenType.SYMBOL_COLON_COLON))
-        name += "::" + read_identifier
-      endWhile
-      return BossTypeReference( t, name )
-      }#
+      return this_module.get_type( t, name )
 
     method parse_statements( statements:CmdStatements, end_type:TokenType )
       if (consume_eols)
@@ -367,7 +362,9 @@ class BossParser : Parser
         local name = read_identifier
         local expr : Cmd
         if (consume(TokenType.SYMBOL_EQUALS)) expr = parse_expression()
-        statements.add( CmdLocal(t,name,expr) )
+        local type = null : BossType
+        if (consume(TokenType.SYMBOL_COLON)) type = parse_type
+        statements.add( CmdLocalDeclaration(t,name,expr,type) )
         return
       endIf
 
@@ -376,17 +373,15 @@ class BossParser : Parser
         return
       endIf
 
-      #{
       if (consume(TokenType.KEYWORD_GLOBAL))
         local name = read_identifier
         local expr : Cmd
         if (consume(TokenType.SYMBOL_EQUALS)) expr = parse_expression()
-        local type = BossValue.TYPE_UNDEFINED
-        if (consume(TokenType.SYMBOL_COLON)) type = parse_built_in_type
-        statements.add( CmdGlobal(t,name,expr,type) )
+        local type = null : BossType
+        if (consume(TokenType.SYMBOL_COLON)) type = parse_type
+        statements.add( CmdGlobalDeclaration(t,name,expr,type) )
         return
       endIf
-      }#
 
       #{
       if (consume(TokenType.KEYWORD_IMPORT))

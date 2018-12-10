@@ -9,6 +9,9 @@ class BossModule
 
     is_prepared  = false
 
+    global_vars  = LookupList<<BossVar>>()
+    global_data  = Int64[]
+
   #{
     global_types = LookupList<<Int32>>()
     local_types  = LookupList<<Int32>>()
@@ -21,7 +24,7 @@ class BossModule
     statements   = CmdStatements()
 
   METHODS
-    method init( vm, filepath, name )
+    method init( vm, name, filepath )
 
     method get_type( t:Token, name:String, attributes=0:Int32 )->BossType
       local type = types[ name ]
@@ -50,5 +53,6 @@ class BossModule
 
       local scope = BossScope( this )
       statements.resolve( scope )
+      statements.execute( vm )
 
 endClass

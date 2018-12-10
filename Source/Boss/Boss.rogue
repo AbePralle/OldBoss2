@@ -18,6 +18,7 @@ $include "Boss/BossTokenizer.rogue"
 $include "Boss/BossTokenType.rogue"
 $include "Boss/BossType.rogue"
 $include "Boss/BossValue.rogue"
+$include "Boss/BossVar.rogue"
 $include "Boss/BossVM.rogue"
 
 $include "ParseKit"

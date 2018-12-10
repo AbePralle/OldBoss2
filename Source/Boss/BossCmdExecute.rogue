@@ -88,6 +88,15 @@ endAugment
 augment CmdAdd
 endAugment
 
+augment CmdAddInt32
+  METHODS
+    method execute( vm:BossVM )
+      left.execute( vm )
+      local result = vm.pop_int32
+      right.execute( vm )
+      vm.stack.last += result
+endAugment
+
 augment CmdSubtract
 endAugment
 
@@ -469,10 +478,8 @@ endAugment
 
 augment CmdGlobalRead
   METHODS
-    #{
     method execute( vm:BossVM )
-      return vm.global_vars[ index ]
-    }#
+      vm.stack.add( v.context_module.global_data[v.slot] )
 endAugment
 
 augment CmdGlobalWrite
@@ -524,20 +531,14 @@ augment CmdLocalWrite
 endAugment
 
 
-augment CmdGlobal
+augment CmdGlobalDeclaration
   METHODS
-    #{
     method execute( vm:BossVM )
-      m.global_types[ name ] = primitive_type
-      if (initial_value)
-        vm.global_vars[ index ] = initial_value.execute( vm )
-      endIf
-      return UndefinedBossValue
-      }#
+      noAction
 endAugment
 
 
-augment CmdLocal
+augment CmdLocalDeclaration
   METHODS
     #{
     method execute( vm:BossVM )

@@ -35,7 +35,8 @@ augment CmdStatements
         statement = statement.resolved( scope )
         local type = statement.type( scope )
         if (type)
-          statement = CmdDiscardResult( statement.t, statement ).resolved( scope )
+          if (type.slot_count == 1) statement = CmdDiscardResult( statement.t, statement ).resolved( scope )
+          else throw statement.t.error( "[Internal] TODO: CmdDiscardCompoundResult" )
         endIf
         this[ index ] = statement
       endForEach
@@ -242,14 +243,16 @@ augment CmdAccess
       return prior.resolve_post_step( scope, delta )  # generate error
       }#
 
-      #{
     method resolved( scope:BossScope )->Cmd
+      #{
       if (context)
         return context.resolved( scope ).resolve_context_access( scope, name, args )
 
       else
+      }#
         # No class or object context given
         if (args)
+          #{
           args.resolve( scope )
           local type = scope.types[ name ]
           if (type)
@@ -260,16 +263,31 @@ augment CmdAccess
           if (m)
             return CmdGlobalCall( t, m, args ).resolved( scope )
           endIf
+          }#
 
           throw t.error( "No such class or method '$'." (name) )
         else
-          local v = scope.find_local( name )
-          if (v.exists)
-            return CmdLocalRead( t, name, v.value.index ).resolved( scope )
-          elseIf (scope.global_vars.contains(name))
-            return CmdGlobalRead( t, name, scope.global_vars.index(name) ).resolved( scope )
-          endIf
+          #{
+          block
+            local v = scope.find_local( name )
+            if (v.exists)
+              return CmdLocalRead( t, name, v.value.index ).resolved( scope )
+            endIf
+          endBlock
+          }#
 
+          block
+            local v = scope.this_module.global_vars[ name ]
+            if (v)
+              if (v.type.slot_count == 1)
+                return CmdGlobalRead( t, v ).resolved( scope )
+              else
+                throw t.error( "[Internal] TODO: read global compound" )
+              endIf
+            endIf
+          endBlock
+
+          #{
           local p = scope.this_type.find_property( name )
           if (p)
             return CmdThisPropertyRead( t, p.index ).resolved( scope )
@@ -279,11 +297,13 @@ augment CmdAccess
           if (m)
             return CmdGlobalCall( t, m, args ).resolved( scope )
           endIf
+          }#
 
           throw t.error( "No such method or variable '$'." (name) )
         endIf
-      endIf
+      #endIf
 
+      #{
     method resolve_assignment( scope:BossScope, new_value:Cmd )->Cmd
       if (context)
         return CmdContextWrite( t, context, name, new_value ).resolved( scope )
@@ -402,14 +422,18 @@ augment CmdLocalWrite
 endAugment
 
 
-augment CmdGlobal
+augment CmdGlobalDeclaration
   METHODS
     method resolved( scope:BossScope )->Cmd
       local m = scope.this_module
-      if (m.globals.contains(name))
+      if (m.global_vars.contains(name))
         throw t.error( 'A global variable named "$" already exists.' (name) )
       endIf
-      m.global_types[ name ] = primitive_type
+
+      local v = BossVar( m, t, name, initial_value, of_type )
+      m.global_vars[ name ] = v
+      v.resolve( scope )
+
       return this
 
     #{
@@ -427,7 +451,7 @@ augment CmdGlobal
 endAugment
 
 
-augment CmdLocal
+augment CmdLocalDeclaration
   METHODS
     #{
     method resolved( scope:BossScope )->Cmd
