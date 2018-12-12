@@ -36,7 +36,7 @@ augment CmdStatements
         local type = statement.type( scope )
         if (type)
           if (type.slot_count == 1) statement = CmdDiscardResult( statement.t, statement ).resolved( scope )
-          else throw statement.t.error( "[Internal] TODO: CmdDiscardCompoundResult" )
+          else                      statement = CmdDiscardResultCompound( statement.t, statement, type.slot_count ).resolved( scope )
         endIf
         this[ index ] = statement
       endForEach
@@ -59,6 +59,13 @@ augment CmdUnary
 endAugment
 
 augment CmdDiscardResult
+  METHODS
+    method resolved( scope:BossScope )->Cmd
+      operand = operand.resolved( scope ).require_value( scope )
+      return this
+endAugment
+
+augment CmdDiscardCompoundResult
   METHODS
     method resolved( scope:BossScope )->Cmd
       operand = operand.resolved( scope ).require_value( scope )
@@ -92,14 +99,13 @@ augment CmdLiteralNull
 endAugment
 
 augment CmdLiteralInt32
-  METHODS
-    method resolved( scope:BossScope )->Cmd
-      return this
 endAugment
 
 augment CmdLiteralString
   METHODS
     method resolved( scope:BossScope )->Cmd
+      scope.vm.strings.add( value )
+      index = scope.vm.strings.locate( value ).value
       return this
 endAugment
 
@@ -498,7 +504,8 @@ augment CmdPrintln
         forEach (arg in args)
           local type = arg.require_type( scope )
           which (type)
-            case scope.vm.type_Int32: resolved_args.add( CmdPrintInt32(t,arg) )
+            case scope.vm.type_Int32:  resolved_args.add( CmdPrintInt32(t,arg) )
+            case scope.vm.type_String: resolved_args.add( CmdPrintString(t,arg) )
             others:                   throw t.error( "[Internal] TODO: CmdPrintln($)" (type) )
           endWhich
         endForEach

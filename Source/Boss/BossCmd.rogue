@@ -46,9 +46,9 @@ augment CmdUnary
 endAugment
 
 class CmdDiscardResult : CmdUnary
-  METHODS
-    method op->String
-      return "(Int32)"
+endClass
+
+class CmdDiscardResultCompound( t, operand, slot_count:Int32 ) : CmdDiscardResult
 endClass
 
 class BossCmdUnary<<$SYMBOL>> : CmdUnary
@@ -94,7 +94,19 @@ class CmdLiteralInt32( t, value:Int32 ) : CmdLiteral
       return scope.vm.type_Int32
 endClass
 
-class CmdLiteralString( t, value:String ) : CmdLiteral
+class CmdLiteralString : CmdLiteral
+  PROPERTIES
+    value : String
+    index : Int32
+
+  METHODS
+    method init( t, value )
+
+    method to->String
+      return value
+
+    method type( scope:BossScope )->BossType
+      return scope.vm.type_String
 endClass
 
 class CmdAdd : CmdBinaryOp<<+>>
@@ -359,6 +371,9 @@ class CmdPrintln( t, args:CmdArgs ) : Cmd
 endClass
 
 class CmdPrintInt32( t, operand:Cmd ) : Cmd
+endClass
+
+class CmdPrintString( t, operand:Cmd ) : Cmd
 endClass
 
 

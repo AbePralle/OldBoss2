@@ -26,6 +26,42 @@ class BossModule
   METHODS
     method init( vm, name, filepath )
 
+    method execute( command:String, origin="[Native Code]":String )
+      local scope = BossScope( this )
+
+      local statements = CmdStatements()
+      BossParser().[ set_source(origin,command) ].parse_multi_line_statements( statements )
+
+      prepare
+      statements.resolve( scope )
+      statements.execute( vm )
+
+    method evaluate( command:String, origin="[Native Code]":String, required_type:BossType )
+      # Result is left on stack
+      local scope = BossScope( this )
+
+      local statements = CmdStatements()
+      BossParser().[ set_source(origin,command) ].parse_multi_line_statements( statements )
+
+      if (statements.is_empty)
+        local t = Token( TokenType.EOI, origin, 0, 0 )
+        throw t.error( "Expression does not evaluate to required type $." (required_type) )
+      elseIf (statements.count > 1)
+        local t = Token( TokenType.EOI, origin, 0, 0 )
+        throw t.error( "Cannot evaluate() multiple commands." )
+      endIf
+
+      local expression = statements.remove_last
+
+      expression.require_type( scope, required_type )
+      prepare
+      expression = expression.resolved( scope )
+      expression.execute( vm )
+
+    method evaluate_int32( command:String, origin="[Native Code]":String )->Int32
+      evaluate( command, origin, vm.type_Int32 )
+      return vm.pop_int32
+
     method get_type( t:Token, name:String, attributes=0:Int32 )->BossType
       local type = types[ name ]
       if (type)
@@ -36,6 +72,10 @@ class BossModule
       type = BossType( vm, t, name, attributes )
       types[ name ] = type
       return type
+
+    #method import( file:File )
+      #if (not file.exists) throw t.error( "No such file: " + filepath )
+      #BossParser().parse( this, file.load_as_string )
 
       #{
     method launch

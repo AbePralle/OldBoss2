@@ -5,6 +5,8 @@ class BossType
   DEFINITIONS
     IS_DEFINED   = (1:<<:0)
     IS_PRIMITIVE = (1:<<:1)
+    IS_CLASS     = (2:<<:1)
+    IS_STRING    = (3:<<:1)
 
   PROPERTIES
     vm         : BossVM

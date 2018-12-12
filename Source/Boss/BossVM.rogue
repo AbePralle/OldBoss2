@@ -13,15 +13,19 @@ class BossVM
     modules     = LookupList<<BossModule>>()
     module_list = BossModule[]
 
-    module_boss : BossModule
+    default_module : BossModule
 
     internal_t  = Token( TokenType.EOI, "[BossVM]", 0, 0 )
 
     type_Int32  : BossType
+    type_String : BossType
+
+    strings = StringLookupList()
 
   METHODS
     method init
-      type_Int32 = define_type( "Int32", BossType.IS_PRIMITIVE )
+      type_Int32  = define_type( "Int32",  BossType.IS_PRIMITIVE )
+      type_String = define_type( "String", BossType.IS_STRING )
 
     method create_module( name:String, filepath:String )->BossModule
       is_prepared = false
@@ -31,49 +35,19 @@ class BossVM
 
     method define_type( name:String, attributes=0:Int32, slot_count=1:Int32 )->BossType
       attributes |= BossType.IS_DEFINED
-      if (not module_boss)
-        module_boss = create_module( "boss", "[BossVM]" )
-        modules//boss = module_boss
+      if (not default_module)
+        default_module = create_module( "boss", "[BossVM]" )
+        modules//boss = default_module
       endIf
-      local type = module_boss.get_type( internal_t, name, BossType.IS_DEFINED )
+      local type = default_module.get_type( internal_t, name, BossType.IS_DEFINED )
       type.slot_count = slot_count
       return type
 
-    method execute( command:String )
-      local scope = BossScope( module_boss )
+    method execute( command:String, origin="[Native Code]":String )
+      default_module.execute( command, origin )
 
-      local statements = CmdStatements()
-      BossParser().[ set_source("[Native Code]",command) ].parse_multi_line_statements( statements )
-
-      prepare
-      statements.resolve( scope )
-      statements.execute( this )
-
-    method evaluate( command:String, required_type:BossType )
-      # Result is left on stack
-      local scope = BossScope( module_boss )
-
-      local statements = CmdStatements()
-      BossParser().[ set_source("[Native Code]",command) ].parse_multi_line_statements( statements )
-
-      if (statements.is_empty)
-        local t = Token( TokenType.EOI, "[Native Code]", 0, 0 )
-        throw t.error( "Expression does not evaluate to required type $." (required_type) )
-      elseIf (statements.count > 1)
-        local t = Token( TokenType.EOI, "[Native Code]", 0, 0 )
-        throw t.error( "Cannot evaluate() multiple commands." )
-      endIf
-
-      local expression = statements.remove_last
-
-      expression.require_type( scope, required_type )
-      prepare
-      expression = expression.resolved( scope )
-      expression.execute( this )
-
-    method evaluate_int32( command:String )->Int32
-      evaluate( command, type_Int32 )
-      return pop_int32
+    method evaluate_int32( command:String, origin="[Native Code]":String )->Int32
+      return default_module.evaluate_int32( command, origin )
 
     method load( filepath:String )->BossModule
       return load( internal_t, filepath )
@@ -116,14 +90,6 @@ class BossVM
     method parse_expression( filename:String, source:String )->Cmd
       return BossParser().[ set_source(filename,source) ].parse_expression()
 
-    method push( value:Int32 ) [macro]
-      this.stack.add( value )
-
-      #{
-    method push( value:BossValue )
-      stack.add( value )
-      }#
-
     method pop_and_add( slot_count:Int32, list:Int64[] )
       if (slot_count == 1)
         list.add( stack.remove_last )
@@ -134,6 +100,21 @@ class BossVM
 
     method pop_int32->Int32 [macro]
       return this.stack.remove_last->Int32
+
+    method pop_string->String
+      return strings[ stack.remove_last->Int32 ]
+
+    method push( value:Int32 ) [macro]
+      this.stack.add( value )
+
+    method push( value:String )
+      strings.add( value )
+      stack.add( strings.locate(value).value )
+
+      #{
+    method push( value:BossValue )
+      stack.add( value )
+      }#
 
     method prepare
       if (is_prepared) return

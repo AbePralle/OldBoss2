@@ -36,6 +36,13 @@ augment CmdDiscardResult
       vm.stack.remove_last
 endAugment
 
+augment CmdDiscardCompoundResult
+  METHODS
+    method execute( vm:BossVM )
+      operand.execute( vm )
+      vm.stack.discard_from( vm.stack.count - slot_count )
+endAugment
+
 augment BossCmdUnary
   METHODS
     #{
@@ -79,10 +86,8 @@ endAugment
 
 augment CmdLiteralString
   METHODS
-    #{
     method execute( vm:BossVM )
-      return value
-    }#
+      vm.push( index )
 endAugment
 
 augment CmdAdd
@@ -597,6 +602,13 @@ augment CmdPrintInt32
     method execute( vm:BossVM )
       operand.execute( vm )
       print vm.pop_int32
+endAugment
+
+augment CmdPrintString
+  METHODS
+    method execute( vm:BossVM )
+      operand.execute( vm )
+      print vm.pop_string
 endAugment
 
 
