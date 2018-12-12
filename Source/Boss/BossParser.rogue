@@ -8,6 +8,7 @@ class BossParser : Parser
   PROPERTIES
     parse_expression : ParseRule
     this_module      : BossModule
+    this_method      : BossMethod
 
   METHODS
     method init
@@ -151,7 +152,7 @@ class BossParser : Parser
       set_source( this_module.filepath, source )
 
       loop
-        #if (parse_component) nextIteration
+        if (parse_component) nextIteration
 
         if (parse_multi_line_statements(this_module.statements)) nextIteration
 
@@ -191,13 +192,18 @@ class BossParser : Parser
       if (next_is(TokenType.KEYWORD_CLASS))
         parse_class
         return true
-      elseIf (next_is(TokenType.KEYWORD_ROUTINE))
-        scope.this_type = scope.this_module.type_Global
-        parse_method( read )
-        must_consume( TokenType.KEYWORD_END_ROUTINE )
-        return true
       endIf
       }#
+
+      if (next_is(TokenType.KEYWORD_ROUTINE))
+        local t = read # 'routine'
+        local m = BossMethod( t, this_module, read_identifier )
+        parse_method( m )
+        must_consume( TokenType.KEYWORD_END_ROUTINE )
+        this_module.routines.add( m )
+        return true
+      endIf
+
       return false
 
     method parse_class
@@ -257,10 +263,8 @@ class BossParser : Parser
       return false
 
 
-    method parse_method( t:Token )
+    method parse_method( m:BossMethod )
       #{
-      local name = read_identifier
-      local m = scope.this_type.add_method( t, name )
       if (consume(TokenType.SYMBOL_OPEN_PAREN))
         if (not next_is(TokenType.SYMBOL_CLOSE_PAREN))
           consume_eols
@@ -285,9 +289,10 @@ class BossParser : Parser
         must_consume( TokenType.SYMBOL_CLOSE_PAREN )
       endIf
       consume( TokenType.SYMBOL_COLON )   # optional
-      scope.this_method = m
-      parse_multi_line_statements( m.statements )
       }#
+      this_method = m
+      parse_multi_line_statements( m.statements )
+      this_method = null
 
     method parse_type->BossType
       local t = peek

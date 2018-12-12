@@ -1,0 +1,12 @@
+module Boss
+uses ParseKit<<Boss>>
+
+class BossMethods
+  PROPERTIES
+    by_name = StringTable<<BossMethod[]>>()
+
+  METHODS
+    method add( m:BossMethod )
+      ensure by_name[ m.name ]
+      by_name[ m.name ].add( m )
+endClass

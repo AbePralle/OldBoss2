@@ -3,13 +3,19 @@ module Boss
 
 class BossScope
   PROPERTIES
-    vm          : BossVM
-    this_module : BossModule
-    #this_type   : BossType
-    #this_method : BossMethod
+    vm             : BossVM
+    this_module    : BossModule
+    this_type      : BossType
+    this_method    : BossMethod
+    previous_scope : BossScope
 
   METHODS
     method init( this_module )
+      vm = this_module.vm
+
+    method init( this_method )
+      this_type = this_method.type_context  # may be null
+      this_module = this_method.module_context
       vm = this_module.vm
 
     #method init( this_method )

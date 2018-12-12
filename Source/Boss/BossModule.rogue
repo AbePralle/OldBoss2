@@ -19,7 +19,8 @@ class BossModule
     locals       = LookupList<<BossValue>>()  # subset of global_vars
     }#
 
-    types = LookupList<<BossType>>()
+    types    = LookupList<<BossType>>()
+    routines = BossMethods()
 
     statements   = CmdStatements()
 

@@ -1,27 +1,35 @@
 module Boss
   uses ParseKit<<Boss>>
 
-  #{
 class BossMethod
-  #{
   PROPERTIES
-    vm           : BossVM
-    type_context : BossType
-    return_type  : BossType
-    t            : Token
-    name         : String
-    signature    : String
-    #global_index : Int32
-    statements   = CmdStatements()
+    vm             : BossVM
+    module_context : BossModule
+    type_context   : BossType
+    return_type    : BossType
+    t              : Token
+    name           : String
+    signature      : String
+    statements     = CmdStatements()
+
+  #{
     locals       = BossLocal[]
     param_count  : Int32
 
     is_resolved  : Logical
+    }#
 
   METHODS
+    method init( t, module_context, name )
+      vm = module_context.vm
+
+    #{
     method init( type_context, t, name )
       #global_index = type_context.vm.methods.count
       vm = type_context.vm
+      }#
+
+      #{
 
       #{
     method reset
@@ -103,7 +111,6 @@ class BossMethod
         endForEach
         builder.print( ')' )
       endUse
-      }#
+}#
 
 endClass
-}#
