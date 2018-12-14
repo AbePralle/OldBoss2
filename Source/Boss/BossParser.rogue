@@ -264,7 +264,6 @@ class BossParser : Parser
 
 
     method parse_method( m:BossMethod )
-      #{
       if (consume(TokenType.SYMBOL_OPEN_PAREN))
         if (not next_is(TokenType.SYMBOL_CLOSE_PAREN))
           consume_eols
@@ -288,8 +287,9 @@ class BossParser : Parser
         endIf
         must_consume( TokenType.SYMBOL_CLOSE_PAREN )
       endIf
+
       consume( TokenType.SYMBOL_COLON )   # optional
-      }#
+
       this_method = m
       parse_multi_line_statements( m.statements )
       this_method = null

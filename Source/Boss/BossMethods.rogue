@@ -3,10 +3,103 @@ uses ParseKit<<Boss>>
 
 class BossMethods
   PROPERTIES
-    by_name = StringTable<<BossMethod[]>>()
+    by_name     = StringTable<<BossMethod[]>>()
+    all_methods = BossMethod[]
 
   METHODS
     method add( m:BossMethod )
       ensure by_name[ m.name ]
       by_name[ m.name ].add( m )
+      all_methods.add( m )
+
+    method resolve_call( scope:BossScope, access:CmdAccess, &error_on_fail )->Cmd
+      local m = find_method( scope, access, &=error_on_fail )
+      if (not m) return null
+
+      if (m.is_routine)
+        return CmdCallRoutine( access.t, m, access.args ).resolved( scope )
+      else
+        throw access.t.error( "TODO: BossMethods.resolve_call()" );
+      endIf
+
+    method find_method( scope:BossScope, access:CmdAccess, &error_on_fail )->BossMethod
+      local candidates = BossMethodCandidates( this, access, &=error_on_fail )
+      if (candidates.is_empty) return null  # no match, error already thrown if error_on_fail is true
+
+      local arg_count = select{ access.args:access.args.count || 0 }
+
+      forEach (candidate in candidates)
+        if (arg_count >= candidate.min_args and arg_count <= candidate.max_args) candidates.keep( candidate )
+      endForEach
+      candidates.refine_candidates
+
+      if (candidates.found_match) return candidates.match
+
+      throw access.t.error( 'No such method or variable: "$".' (access.name) )
+
+    method resolve
+      (forEach in all_methods).resolve
+endClass
+
+
+class BossMethodCandidates
+  PROPERTIES
+    methods       : BossMethods
+    access        : CmdAccess
+    candidates    = BossMethod[]
+    matches       = BossMethod[]
+    error_on_fail : Logical
+
+  METHODS
+    method init( methods:BossMethods, access, error_on_fail )
+      local name_matches = methods.by_name[ access.name ]
+      if (name_matches)
+        candidates.add( name_matches )
+      else
+        if (error_on_fail) throw access.t.error( 'No such method or variable: "$".' (access.name) )
+      endIf
+
+    method count->Int32
+      return candidates.count
+
+    method found_match->Logical
+      if (matches.count)
+        candidates.[ clear ].add( matches )
+        matches.clear
+        return candidates.count == 1
+      else
+        return false
+      endIf
+
+    method get( index:Int32 )->BossMethod
+      return candidates[ index ]
+
+    method is_empty->Logical
+      return candidates.is_empty
+
+    method keep( m:BossMethod )
+      matches.add( m )
+
+    method match->BossMethod
+      return candidates.first
+
+    method refine_candidates
+      if (matches.count)
+        candidates.[ clear ].add( matches )
+        matches.clear
+      else
+        if (error_on_fail)
+          local builder = StringBuilder()
+          builder.println( 'No such method or variable: "$".\n' (access.name) )
+          if (candidates.count)
+            builder.println
+            builder.println "CANDIDATES"
+            println "  $" (forEach in candidates)
+          endIf
+          throw access.t.error( builder )
+        endIf
+
+        if (error_on_fail) throw access.t.error( 'No such method or variable: "$".' (access.name) )
+        if (error_on_fail) throw access.t.error( 'No such method or variable: "$".' (access.name) )
+      endIf
 endClass

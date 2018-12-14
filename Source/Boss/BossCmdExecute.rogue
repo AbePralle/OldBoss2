@@ -20,10 +20,8 @@ endAugment
 
 augment CmdArgs
   METHODS
-    #{
     method execute( vm:BossVM )
-      vm.push( (forEach in this).execute(vm) )
-    }#
+      (forEach in this).execute(vm)
 endAugment
 
 augment CmdUnary
@@ -230,7 +228,7 @@ augment CmdAccess
       throw t.error( "[INTERNAL] Unresolved access: " + name )
 endAugment
 
-augment CmdContextRead
+augment CmdReadContext
   METHODS
     #{
     method execute( vm:BossVM )
@@ -272,7 +270,7 @@ augment CmdContextRead
     }#
 endAugment
 
-augment CmdContextWrite
+augment CmdWriteContext
   METHODS
     #{
     method execute( vm:BossVM )
@@ -320,7 +318,7 @@ augment CmdContextWrite
     }#
 endAugment
 
-augment CmdThisPropertyRead
+augment CmdReadThisProperty
   METHODS
     #{
     method execute( vm:BossVM )
@@ -330,7 +328,7 @@ augment CmdThisPropertyRead
     }#
 endAugment
 
-augment CmdThisPropertyWrite
+augment CmdWriteThisProperty
   METHODS
     #{
     method execute( vm:BossVM )
@@ -481,13 +479,13 @@ augment CmdGlobalCall
     }#
 endAugment
 
-augment CmdGlobalRead
+augment CmdReadGlobal
   METHODS
     method execute( vm:BossVM )
       vm.stack.add( v.context_module.global_data[v.slot] )
 endAugment
 
-augment CmdGlobalWrite
+augment CmdWriteGlobal
   METHODS
     #{
     method execute( vm:BossVM )
@@ -497,12 +495,19 @@ augment CmdGlobalWrite
     }#
 endAugment
 
-augment CmdLocalRead
+augment CmdReadLocal
   METHODS
-    #{
     method execute( vm:BossVM )
-      return vm.stack[ vm.fp+index ]
-    }#
+      vm.push( vm.fp+index )
+endAugment
+
+augment CmdReadLocalCompound
+  METHODS
+    method execute( vm:BossVM )
+      loop (slot_count)
+        vm.push( vm.fp+index )
+        ++index
+      endLoop
 endAugment
 
 augment CmdLocalAddLiteralAndAssign
@@ -525,7 +530,7 @@ augment CmdLocalPostIncrement
     }#
 endAugment
 
-augment CmdLocalWrite
+augment CmdWriteLocal
   METHODS
     #{
     method execute( vm:BossVM )
@@ -666,4 +671,16 @@ augment CmdThisCall
     }#
 endAugment
 }#
+
+augment CmdCallRoutine
+  METHODS
+    method execute( vm:BossVM )
+      local old_fp = vm.fp
+      vm.fp = vm.stack.count
+
+      if (args) args.execute( vm )
+      m.statements.execute( vm )
+
+      vm.fp = old_fp
+endAugment
 

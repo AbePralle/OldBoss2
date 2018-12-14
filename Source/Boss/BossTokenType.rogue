@@ -33,7 +33,7 @@ augment TokenType
   KEYWORD_PROPERTIES  ( "PROPERTIES", &is_keyword, &is_structural )
   KEYWORD_RETURN      ( "return",     &is_keyword )
   KEYWORD_ROUTINE     ( "routine",    &is_keyword, &is_structural )
-  KEYWORD_THIS        ( "this",       &is_keyword )
+  #KEYWORD_THIS        ( "this",       &is_keyword )
   KEYWORD_THIS_CALL   ( "thisCall",   &is_keyword, &is_structural )
   KEYWORD_TRUE        ( "true",       &is_keyword )
   KEYWORD_UNDEFINED   ( "undefined",  &is_keyword )

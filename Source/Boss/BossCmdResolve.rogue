@@ -15,7 +15,7 @@ augment Cmd
       if (args)
         return CmdContextCall( t, this, name, args ).resolved( scope )
       else
-        return CmdContextRead( t, this, name ).resolved( scope )
+        return CmdReadContext( t, this, name ).resolved( scope )
       endIf
 
     method resolve_assignment( scope:BossScope, new_value:Cmd )->Cmd
@@ -250,12 +250,13 @@ augment CmdAccess
       }#
 
     method resolved( scope:BossScope )->Cmd
+      return scope.resolve_access( this )
+
       #{
       if (context)
         return context.resolved( scope ).resolve_context_access( scope, name, args )
 
       else
-      }#
         # No class or object context given
         if (args)
           #{
@@ -277,7 +278,7 @@ augment CmdAccess
           block
             local v = scope.find_local( name )
             if (v.exists)
-              return CmdLocalRead( t, name, v.value.index ).resolved( scope )
+              return CmdReadLocal( t, name, v.value.index ).resolved( scope )
             endIf
           endBlock
           }#
@@ -286,7 +287,7 @@ augment CmdAccess
             local v = scope.this_module.global_vars[ name ]
             if (v)
               if (v.type.slot_count == 1)
-                return CmdGlobalRead( t, v ).resolved( scope )
+                return CmdReadGlobal( t, v ).resolved( scope )
               else
                 throw t.error( "[Internal] TODO: read global compound" )
               endIf
@@ -296,7 +297,7 @@ augment CmdAccess
           #{
           local p = scope.this_type.find_property( name )
           if (p)
-            return CmdThisPropertyRead( t, p.index ).resolved( scope )
+            return CmdReadThisProperty( t, p.index ).resolved( scope )
           endIf
 
           local m = scope.type_Global.find_method( name )
@@ -308,23 +309,24 @@ augment CmdAccess
           throw t.error( "No such method or variable '$'." (name) )
         endIf
       #endIf
+      }#
 
       #{
     method resolve_assignment( scope:BossScope, new_value:Cmd )->Cmd
       if (context)
-        return CmdContextWrite( t, context, name, new_value ).resolved( scope )
+        return CmdWriteContext( t, context, name, new_value ).resolved( scope )
       else
         local v = scope.find_local( name )
         if (v.exists)
-          return CmdLocalWrite( t, name, v.value.index, new_value ).resolved( scope )
+          return CmdWriteLocal( t, name, v.value.index, new_value ).resolved( scope )
         else
           local p = scope.this_type.find_property( name )
           if (p)
-            return CmdThisPropertyWrite( t, p.index, new_value ).resolved( scope )
+            return CmdWriteThisProperty( t, p.index, new_value ).resolved( scope )
           endIf
 
           if (scope.global_vars.contains(name))
-            return CmdGlobalWrite( t, name, scope.global_vars.index(name), new_value ).resolved( scope )
+            return CmdWriteGlobal( t, name, scope.global_vars.index(name), new_value ).resolved( scope )
           endIf
 
           throw t.error( 'No such method or variable: "$".' (name) )
@@ -333,7 +335,7 @@ augment CmdAccess
       }#
 endAugment
 
-augment CmdContextRead
+augment CmdReadContext
   METHODS
     #{
     method resolved( scope:BossScope )->Cmd
@@ -343,7 +345,7 @@ augment CmdContextRead
       }#
 endAugment
 
-augment CmdContextWrite
+augment CmdWriteContext
   METHODS
     #{
     method resolved( scope:BossScope )->Cmd
@@ -354,10 +356,10 @@ augment CmdContextWrite
       }#
 endAugment
 
-augment CmdThisPropertyRead
+augment CmdReadThisProperty
 endAugment
 
-augment CmdThisPropertyWrite
+augment CmdWriteThisProperty
   METHODS
     method resolved( scope:BossScope )->Cmd
       new_value = new_value.resolved( scope )
@@ -409,13 +411,13 @@ augment CmdGlobalCall
       return this
 endAugment
 
-augment CmdGlobalRead
+augment CmdReadGlobal
 endAugment
 
-augment CmdGlobalWrite
+augment CmdWriteGlobal
 endAugment
 
-augment CmdLocalRead
+augment CmdReadLocal
 endAugment
 
 augment CmdLocalAddLiteralAndAssign
@@ -424,7 +426,7 @@ endAugment
 augment CmdLocalPostIncrement
 endAugment
 
-augment CmdLocalWrite
+augment CmdWriteLocal
 endAugment
 
 
@@ -555,3 +557,9 @@ augment CmdThisCall
 endAugment
 }#
 
+augment CmdCallRoutine
+  METHODS
+    method resolved( scope:BossScope )->Cmd
+      if (args) args.resolve( scope )
+      return this
+endAugment

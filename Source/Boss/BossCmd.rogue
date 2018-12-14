@@ -253,22 +253,22 @@ class CmdAccess( t, context:Cmd, name:String, args:CmdArgs ) : Cmd
       return name
 endClass
 
-class CmdContextRead( t, context:Cmd, name:String, element_id=0:Int32 ) : Cmd
+class CmdReadContext( t, context:Cmd, name:String, element_id=0:Int32 ) : Cmd
   METHODS
     method to->String
       return name
 endClass
 
-class CmdContextWrite( t, context:Cmd, name:String, new_value:Cmd, element_id=0:Int32 ) : Cmd
+class CmdWriteContext( t, context:Cmd, name:String, new_value:Cmd, element_id=0:Int32 ) : Cmd
   METHODS
     method to->String
       return name
 endClass
 
-class CmdThisPropertyRead( t, property_index:Int32 ) : Cmd
+class CmdReadThisProperty( t, property_index:Int32 ) : Cmd
 endClass
 
-class CmdThisPropertyWrite( t, property_index:Int32, new_value:Cmd ) : Cmd
+class CmdWriteThisProperty( t, property_index:Int32, new_value:Cmd ) : Cmd
 endClass
 
 class CmdThisPropertyAddLiteralAndAssign( t, property_index:Int32, delta:Real64 ) : Cmd
@@ -306,16 +306,54 @@ class CmdGlobalCall( t, m:BossMethod, args:CmdArgs ) : Cmd
 endClass
 }#
 
-class CmdGlobalRead( t, v:BossVar ) : Cmd
+class CmdReadGlobal( t, v:BossVar ) : Cmd
   METHODS
     method type( scope:BossScope )->BossType
       return v.type
 endClass
 
-class CmdGlobalWrite( t, name:String, index:Int32, new_value:Cmd ) : Cmd
+class CmdReadGlobalCompound : Cmd
+  PROPERTIES
+    v          : BossVar
+    slot_count : Int32
+
+  METHODS
+    method init( t, v )
+      slot_count = v.type.slot_count
+
+    method type( scope:BossScope )->BossType
+      return v.type
 endClass
 
-class CmdLocalRead( t, name:String, index:Int32 ) : Cmd
+class CmdWriteGlobal( t, name:String, index:Int32, new_value:Cmd ) : Cmd
+endClass
+
+class CmdReadLocal : Cmd
+  PROPERTIES
+    v     : BossLocal
+    index : Int32
+
+  METHODS
+    method init( t, v )
+      index = v.index
+
+    method type( scope:BossScope )->BossType
+      return v.type
+endClass
+
+class CmdReadLocalCompound : Cmd
+  PROPERTIES
+    v          : BossLocal
+    index      : Int32
+    slot_count : Int32
+
+  METHODS
+    method init( t, v )
+      index = v.index
+      slot_count = v.type.slot_count
+
+    method type( scope:BossScope )->BossType
+      return v.type
 endClass
 
 class CmdLocalAddLiteralAndAssign( t, name:String, index:Int32, delta:Real64 ) : Cmd
@@ -324,7 +362,7 @@ endClass
 class CmdLocalPostIncrement( t, name:String, index:Int32, delta:Real64 ) : Cmd
 endClass
 
-class CmdLocalWrite( t, name:String, index:Int32, new_value:Cmd ) : Cmd
+class CmdWriteLocal( t, name:String, index:Int32, new_value:Cmd ) : Cmd
 endClass
 
 
@@ -402,4 +440,10 @@ endClass
 class CmdThisCall
 endClass
 }#
+
+class CmdCallRoutine( t, m:BossMethod, args:CmdArgs ) : Cmd
+  METHODS
+    method type( scope:BossScope )->BossType
+      return m.return_type
+endClass
 

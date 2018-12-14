@@ -3,24 +3,26 @@ module Boss
 
 class BossMethod
   PROPERTIES
-    vm             : BossVM
-    module_context : BossModule
-    type_context   : BossType
-    return_type    : BossType
-    t              : Token
-    name           : String
-    signature      : String
-    statements     = CmdStatements()
+    vm              : BossVM
+    module_context  : BossModule
+    type_context    : BossType
+    return_type     : BossType
+    t               : Token
+    name            : String
+    signature       : String
+    statements      = CmdStatements()
 
-  #{
-    locals       = BossLocal[]
-    param_count  : Int32
+    min_args        : Int32
+    max_args        : Int32
 
-    is_resolved  : Logical
-    }#
+    locals          = BossLocal[]
+    parameter_count : Int32
+
+    is_resolved     : Logical
 
   METHODS
     method init( t, module_context, name )
+      # 'routine' initializer
       vm = module_context.vm
 
     #{
@@ -30,22 +32,24 @@ class BossMethod
       }#
 
       #{
-
-      #{
     method reset
       statements.clear
       locals.clear
       param_count = 0
       }#
 
-    method add_local( t:Token, name:String, initial_value:Cmd, type:CmdTypeReference )->Int32
-      local index = locals.count + 1
+    method add_local( t:Token, name:String, initial_value:Cmd, type:BossType )
+      local index = locals.count
       locals.add( BossLocal(t,name,initial_value,type,index) )
-      return index
 
-    method add_parameter( t:Token, name:String, initial_value:Cmd, type:BossTypeReference )->Int32
-      ++param_count
-      return add_local( t, name, initial_value, type )
+    method add_parameter( t:Token, name:String, initial_value:Cmd, type:BossType )
+      ++parameter_count
+
+      add_local( t, name, initial_value, type )
+
+      if (is_instance_method) max_args = locals.count - 1  # omit 'this'
+      else                    max_args = locals.count
+      if (not initial_value) min_args = max_args
 
       #{
     method call( arg_count:Int32 )
@@ -83,22 +87,40 @@ class BossMethod
         endWhich
         }#
 
+    method is_instance_method->Logical
+      return false  # FIXME
+
+    method is_routine->Logical
+      return (type_context is null)
+
     method resolve
       if (is_resolved) return
       is_resolved = true
 
-      #{
-      forEach (param_index in 0..<param_count)
-        vm.locals.add( locals[param_index] )
-      endForEach
-      }#
+      module_context.resolve
+      if (type_context) type_context.resolve
 
-      statements.resolve( BossScope(this) )
+      forEach (v in locals)
+        require v.type
+        v.type = v.type.resolved
+      endForEach
+
+      if (return_type) return_type = return_type.resolved
+
+      local scope = BossScope( this )
+      forEach (i in 0..<parameter_count)
+        scope.locals.add( locals[i] )
+      endForEach
+
+      statements.resolve( scope )
+
+      loop (max_args) scope.locals.remove_last
 
       #{
       loop (param_count) vm.locals.remove_last
       }#
 
+      #{
     method signature->String
       if (@signature) return @signature
       use builder = StringBuilder.pool
@@ -111,6 +133,6 @@ class BossMethod
         endForEach
         builder.print( ')' )
       endUse
-}#
+      }#
 
 endClass

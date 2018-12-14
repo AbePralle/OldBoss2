@@ -7,8 +7,9 @@ module Boss
 class BossVM
   PROPERTIES
     stack = Int64[]
+    fp    : Int32
 
-    is_prepared : Logical
+    is_resolved : Logical
 
     modules     = LookupList<<BossModule>>()
     module_list = BossModule[]
@@ -28,9 +29,10 @@ class BossVM
       type_String = define_type( "String", BossType.IS_STRING )
 
     method create_module( name:String, filepath:String )->BossModule
-      is_prepared = false
+      is_resolved = false
       local m = BossModule( this, name, filepath )
       module_list.add( m )
+      if (default_module) m.import( default_module )
       return m
 
     method define_type( name:String, attributes=0:Int32, slot_count=1:Int32 )->BossType
@@ -76,6 +78,8 @@ class BossVM
 
       parse( m, File.load_as_string(abs_filepath) )
 
+      resolve
+
       return m
 
 
@@ -116,10 +120,10 @@ class BossVM
       stack.add( value )
       }#
 
-    method prepare
-      if (is_prepared) return
+    method resolve
+      if (is_resolved) return
 
-      is_prepared = true
-      (forEach in module_list).prepare
+      is_resolved = true
+      (forEach in module_list).resolve
 endClass
 
