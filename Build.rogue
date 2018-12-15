@@ -13,7 +13,7 @@
 augment Build
   PROPERTIES
     BINDIR   = "/usr/local/bin"
-    BOSS_EXE = "Build/Boss-macOS"
+    BOSS_EXE = "Build/Rogue/Boss-$" (System.os)
     SUDO_CMD = ""
 endAugment
 
@@ -36,10 +36,9 @@ routine rogo_boss
 endRoutine
 
 routine rogo_build
-  File.create_folder( "Build" )
-  local exe = "Build/Boss-$" (System.os)
-  if (Files("Source","**.rogue").any_newer_than(exe))
-    execute( "roguec Source/Console/Main.rogue --debug --libraries=Source --output=$ --compile" (exe) )
+  File.create_folder( "Build/Rogue" )
+  if (Files("Source/Rogue","**.rogue").any_newer_than(Build.BOSS_EXE))
+    execute( "roguec Source/Rogue/Console/Main.rogue --debug --libraries=Source/Rogue --output=$ --compile" (Build.BOSS_EXE) )
   endIf
   build_launcher
 endRoutine
@@ -61,6 +60,16 @@ routine build_launcher
   File.delete( "launcher.script" )
 endRoutine
 
+routine rogo_unlink
+  if (System.os == "Windows") return
+  local launcher_filepath = "$/boss" (Build.BINDIR)
+  if (not File.exists(launcher_filepath)) return
+  println "-------------------------------------------------------------------------------"
+  println "Deleting $/boss launcher" (Build.BINDIR)
+  println "-------------------------------------------------------------------------------"
+  File.delete( launcher_filepath )
+endRoutine
+
 routine create_bindir
   if (not File.exists(Build.BINDIR))
     println "$ does not exist. Creating..." (Build.BINDIR)
@@ -77,7 +86,7 @@ routine create_bindir
 endRoutine
 
 routine rogo_run
-  local exe = "Build/Boss-$" (System.os)
+  local exe = "Build/Rogue/Boss-$" (System.os)
   execute( "$" (exe) )
 endRoutine
 

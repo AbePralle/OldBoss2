@@ -40,6 +40,7 @@ augment TokenType
   KEYWORD_WHILE       ( "while",      &is_keyword )
 
   SYMBOL_AMPERSAND    ( "&",   &is_symbol )
+  SYMBOL_ARROW        ( "->",  &is_symbol )
   SYMBOL_ASTERISK     ( "*",   &is_symbol )
   SYMBOL_BANG         ( "!",   &is_symbol )
   SYMBOL_CARET        ( "^",   &is_symbol )

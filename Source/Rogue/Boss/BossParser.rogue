@@ -288,6 +288,12 @@ class BossParser : Parser
         must_consume( TokenType.SYMBOL_CLOSE_PAREN )
       endIf
 
+      #{
+      if (consume(TokenType.SYMBOL_ARROW))
+        m.return_type = parse_type
+      endIf
+      }#
+
       consume( TokenType.SYMBOL_COLON )   # optional
 
       this_method = m
