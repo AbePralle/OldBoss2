@@ -7,16 +7,18 @@ public class BossTokens
 {
   // PROPERTIES
   public BossIntList definitions = new BossIntList( 256 );     // [flags, name string index]
-  public BossIntList   tokenData = new BossIntList( 2048 );    // [type,value/index]
+  public BossIntList   tokenData = new BossIntList( 8192 );    // [type, content value/index, filepath index, line, column]
   public BossStringList  strings = new BossStringList( 512 );
+  public BossDoubleList  reals   = new BossDoubleList( 512 );
   public HashMap<String,Integer> stringLookup = new HashMap<String,Integer>();
+
+  int    nextFilepath;
+  int    nextLine;
+  int    nextColumn;
 
   // METHODS
   public BossTokens()
   {
-    tokenData.add( 0 );
-    tokenData.add( 0 );
-
     int isKeyword    = BossTokenType.KEYWORD;
     int isSymbol     = BossTokenType.SYMBOL;
     int isStructural = BossTokenType.STRUCTURAL;
@@ -25,66 +27,62 @@ public class BossTokens
     define( BossTokenType.EOL,        "[end of line]",  isSymbol );
     define( BossTokenType.IDENTIFIER, "identifier", 0 );
     define( BossTokenType.STRING,     "String", 0 );
-    define( BossTokenType.INT32,      "Int32", 0 );
 
-    /*
-    KEYWORD_CLASS       ( "class",      &is_keyword, &is_structural )
-    KEYWORD_ELSE        ( "else",       &is_keyword, &is_structural )
-    KEYWORD_ELSE_IF     ( "elseIf",     &is_keyword, &is_structural )
-    KEYWORD_END_CLASS   ( "endClass",   &is_keyword, &is_structural )
-    KEYWORD_END_IF      ( "endIf",      &is_keyword, &is_structural )
-    KEYWORD_END_ROUTINE ( "endRoutine", &is_keyword, &is_structural )
-    KEYWORD_END_WHILE   ( "endWhile",   &is_keyword, &is_structural )
-    KEYWORD_FALSE       ( "false",      &is_keyword )
-    KEYWORD_GLOBAL      ( "global",     &is_keyword )
-    KEYWORD_IF          ( "if",         &is_keyword )
-    KEYWORD_IMPORT      ( "import",     &is_keyword )
-    KEYWORD_LOCAL       ( "local",      &is_keyword )
-    KEYWORD_METHOD      ( "method",     &is_keyword, &is_structural )
-    KEYWORD_METHODS     ( "METHODS",    &is_keyword, &is_structural )
-    KEYWORD_NULL        ( "null",       &is_keyword )
-    KEYWORD_PRINTLN     ( "println",    &is_keyword )
-    KEYWORD_PROPERTIES  ( "PROPERTIES", &is_keyword, &is_structural )
-    KEYWORD_RETURN      ( "return",     &is_keyword )
-    KEYWORD_ROUTINE     ( "routine",    &is_keyword, &is_structural )
-    #KEYWORD_THIS        ( "this",       &is_keyword )
-    KEYWORD_THIS_CALL   ( "thisCall",   &is_keyword, &is_structural )
-    KEYWORD_TRUE        ( "true",       &is_keyword )
-    KEYWORD_UNDEFINED   ( "undefined",  &is_keyword )
-    KEYWORD_WHILE       ( "while",      &is_keyword )
+    define( BossTokenType.KEYWORD_CLASS,        "class",      isKeyword | isStructural );
+    define( BossTokenType.KEYWORD_ELSE,         "else",       isKeyword | isStructural );
+    define( BossTokenType.KEYWORD_ELSE_IF,      "elseIf",     isKeyword | isStructural );
+    define( BossTokenType.KEYWORD_END_CLASS,    "endClass",   isKeyword | isStructural );
+    define( BossTokenType.KEYWORD_END_IF,       "endIf",      isKeyword | isStructural );
+    define( BossTokenType.KEYWORD_END_ROUTINE,  "endRoutine", isKeyword | isStructural );
+    define( BossTokenType.KEYWORD_END_WHILE,    "endWhile",   isKeyword | isStructural );
+    define( BossTokenType.KEYWORD_FALSE,        "false",      isKeyword );
+    define( BossTokenType.KEYWORD_GLOBAL,       "global",     isKeyword );
+    define( BossTokenType.KEYWORD_IF,           "if",         isKeyword );
+    define( BossTokenType.KEYWORD_IMPORT,       "import",     isKeyword );
+    define( BossTokenType.KEYWORD_LOCAL,        "local",      isKeyword );
+    define( BossTokenType.KEYWORD_METHOD,       "method",     isKeyword | isStructural );
+    define( BossTokenType.KEYWORD_METHODS,      "METHODS",    isKeyword | isStructural );
+    define( BossTokenType.KEYWORD_NULL,         "null",       isKeyword );
+    define( BossTokenType.KEYWORD_PRINTLN,      "println",    isKeyword );
+    define( BossTokenType.KEYWORD_PROPERTIES,   "PROPERTIES", isKeyword | isStructural );
+    define( BossTokenType.KEYWORD_RETURN,       "return",     isKeyword );
+    define( BossTokenType.KEYWORD_ROUTINE,      "routine",    isKeyword | isStructural );
+    define( BossTokenType.KEYWORD_THIS_CALL,    "thisCall",   isKeyword | isStructural );
+    define( BossTokenType.KEYWORD_TRUE,         "true",       isKeyword );
+    define( BossTokenType.KEYWORD_UNDEFINED,    "undefined",  isKeyword );
+    define( BossTokenType.KEYWORD_WHILE,        "while",      isKeyword );
 
-    SYMBOL_AMPERSAND    ( "&",   &is_symbol )
-    SYMBOL_ARROW        ( "->",  &is_symbol )
-    SYMBOL_ASTERISK     ( "*",   &is_symbol )
-    SYMBOL_BANG         ( "!",   &is_symbol )
-    SYMBOL_CARET        ( "^",   &is_symbol )
-    SYMBOL_CLOSE_PAREN  ( ")",   &is_symbol, &is_structural )
-    SYMBOL_COLON        ( ":",   &is_symbol )
-    SYMBOL_COLON_COLON  ( "::",  &is_symbol )
-    SYMBOL_COMMA        ( ",",   &is_symbol )
-    SYMBOL_DOLLAR       ( "$",   &is_symbol )
-    SYMBOL_EQUALS       ( "=",   &is_symbol )
-    SYMBOL_EQ           ( "==",  &is_symbol )
-    SYMBOL_GE           ( ">=",  &is_symbol )
-    SYMBOL_GT           ( ">",   &is_symbol )
-    SYMBOL_LEFT_SHIFT   ( "<<",  &is_symbol )
-    SYMBOL_LE           ( "<=",  &is_symbol )
-    SYMBOL_LT           ( "<",   &is_symbol )
-    SYMBOL_MINUS        ( "-",   &is_symbol )
-    SYMBOL_MINUS_MINUS  ( "--",  &is_symbol )
-    SYMBOL_NE           ( "!=",  &is_symbol )
-    SYMBOL_OPEN_PAREN   ( "(",   &is_symbol )
-    SYMBOL_PERCENT      ( "%",   &is_symbol )
-    SYMBOL_PERIOD       ( ".",   &is_symbol )
-    SYMBOL_PLUS         ( "+",   &is_symbol )
-    SYMBOL_PLUS_PLUS    ( "++",  &is_symbol )
-    SYMBOL_RIGHT_SHIFT  ( ">>",  &is_symbol )
-    SYMBOL_RIGHT_SHIFT_X( ">>>", &is_symbol )
-    SYMBOL_SEMICOLON    ( ";",   &is_symbol )
-    SYMBOL_SLASH        ( "/",   &is_symbol )
-    SYMBOL_TILDE        ( "~",   &is_symbol )
-    SYMBOL_VERTICAL_BAR ( "|",   &is_symbol )
-    */
+    define( BossTokenType.SYMBOL_AMPERSAND,     "&",   isSymbol );
+    define( BossTokenType.SYMBOL_ARROW,         "->",  isSymbol );
+    define( BossTokenType.SYMBOL_ASTERISK,      "*",   isSymbol );
+    define( BossTokenType.SYMBOL_BANG,          "!",   isSymbol );
+    define( BossTokenType.SYMBOL_CARET,         "^",   isSymbol );
+    define( BossTokenType.SYMBOL_CLOSE_PAREN,   ")",   isSymbol | isStructural );
+    define( BossTokenType.SYMBOL_COLON,         ":",   isSymbol );
+    define( BossTokenType.SYMBOL_COLON_COLON,   "::",  isSymbol );
+    define( BossTokenType.SYMBOL_COMMA,         ",",   isSymbol );
+    define( BossTokenType.SYMBOL_DOLLAR,        "$",   isSymbol );
+    define( BossTokenType.SYMBOL_EQUALS,        "=",   isSymbol );
+    define( BossTokenType.SYMBOL_EQ,            "==",  isSymbol );
+    define( BossTokenType.SYMBOL_GE,            ">=",  isSymbol );
+    define( BossTokenType.SYMBOL_GT,            ">",   isSymbol );
+    define( BossTokenType.SYMBOL_LEFT_SHIFT,    "<<",  isSymbol );
+    define( BossTokenType.SYMBOL_LE,            "<=",  isSymbol );
+    define( BossTokenType.SYMBOL_LT,            "<",   isSymbol );
+    define( BossTokenType.SYMBOL_MINUS,         "-",   isSymbol );
+    define( BossTokenType.SYMBOL_MINUS_MINUS,   "--",  isSymbol );
+    define( BossTokenType.SYMBOL_NE,            "!=",  isSymbol );
+    define( BossTokenType.SYMBOL_OPEN_PAREN,    "(",   isSymbol );
+    define( BossTokenType.SYMBOL_PERCENT,       "%",   isSymbol );
+    define( BossTokenType.SYMBOL_PERIOD,        ".",   isSymbol );
+    define( BossTokenType.SYMBOL_PLUS,          "+",   isSymbol );
+    define( BossTokenType.SYMBOL_PLUS_PLUS,     "++",  isSymbol );
+    define( BossTokenType.SYMBOL_RIGHT_SHIFT,   ">>",  isSymbol );
+    define( BossTokenType.SYMBOL_RIGHT_SHIFT_X, ">>>", isSymbol );
+    define( BossTokenType.SYMBOL_SEMICOLON,     ";",   isSymbol );
+    define( BossTokenType.SYMBOL_SLASH,         "/",   isSymbol );
+    define( BossTokenType.SYMBOL_TILDE,         "~",   isSymbol );
+    define( BossTokenType.SYMBOL_VERTICAL_BAR,  "|",   isSymbol );
   }
 
   public void define( int tokenType, String name, int flags )
@@ -93,18 +91,58 @@ public class BossTokens
     definitions.expandToCount( index + 2 );
 
     definitions.set( index, flags );
+    definitions.set( index+1, stringIndex(name) );
+  }
 
-    Integer nameIndex = stringLookup.get( name );
-    if (nameIndex != null)
+  public void setFilepath( String nextFilepath )
+  {
+    this.nextFilepath = stringIndex( nextFilepath );
+  }
+
+  public int stringIndex( String value )
+  {
+    // TODO: maybe replace HashMap with an efficient custom hash lookup to avoid Integer objects
+    Integer existingIndex = stringLookup.get( value );
+    if (existingIndex != null)
     {
-      definitions.set( index+1, (int)nameIndex );
+      return (int) existingIndex;
     }
     else
     {
-      definitions.set( index+1, strings.count );
-      stringLookup.put( name, strings.count );
-      strings.add( name );
+      stringLookup.put( value, strings.count );
+      strings.add( value );
+      return strings.count - 1;
     }
+  }
+
+  public int token( int type )
+  {
+    return token( type, 0 );
+  }
+
+  public int token( int type, int content )
+  {
+    BossIntList tokenData = this.tokenData;
+    tokenData.reserve( 5 );
+    int index = tokenData.count;
+    tokenData.add( type );
+    tokenData.add( content );
+    tokenData.add( nextFilepath );
+    tokenData.add( nextLine );
+    tokenData.add( nextColumn );
+    return index;
+  }
+
+  public int token( int type, double content )
+  {
+    // TODO: maybe consolidate reals with an efficient custom hash lookup
+    reals.add( content );
+    return token( type, reals.count - 1 );
+  }
+
+  public int token( int type, String content )
+  {
+    return token( type, stringIndex(content) );
   }
 }
 
