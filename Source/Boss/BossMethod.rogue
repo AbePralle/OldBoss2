@@ -116,23 +116,22 @@ class BossMethod
 
       loop (max_args) scope.locals.remove_last
 
-      #{
-      loop (param_count) vm.locals.remove_last
-      }#
-
-      #{
     method signature->String
       if (@signature) return @signature
       use builder = StringBuilder.pool
         builder.print( name )
         builder.print( '(' )
-        forEach (index in 0..<param_count)
+        forEach (index in 0..<parameter_count)
           if (index > 0) builder.print( ',' )
           local param = locals[ index ]
           builder.print( param.type.name )
         endForEach
         builder.print( ')' )
+        @signature = builder->String
       endUse
-      }#
+      return @signature
+
+    method to->String
+      return name
 
 endClass

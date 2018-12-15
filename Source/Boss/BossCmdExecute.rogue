@@ -498,14 +498,14 @@ endAugment
 augment CmdReadLocal
   METHODS
     method execute( vm:BossVM )
-      vm.push( vm.fp+index )
+      vm.push( vm.stack[vm.fp+index] )
 endAugment
 
 augment CmdReadLocalCompound
   METHODS
     method execute( vm:BossVM )
       loop (slot_count)
-        vm.push( vm.fp+index )
+        vm.push( vm.stack[vm.fp+index] )
         ++index
       endLoop
 endAugment
