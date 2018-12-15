@@ -36,14 +36,54 @@ routine rogo_boss
 endRoutine
 
 routine rogo_build
+  rogo_build_java
+endRoutine
+
+routine rogo_build_java
+  File.create_folder( "Build/Java" )
+  local class_files = Files( "Build/Java", "**.class" )
+  forEach (java_filepath in Files("Source/Java","**.java"))
+    local class_filepath = "Build/$.class" (java_filepath.after_first("Source/").before_last(".java"))
+    class_files.remove( class_filepath )
+    if (File.is_newer_than(java_filepath,class_filepath))
+      execute "javac -d Build/Java $/*" (File.path(java_filepath))
+    endIf
+  endForEach
+
+  if (class_files.count)
+    # Delete vestigial .class files that no longer have a .java source
+    File.delete( forEach in class_files )
+  endIf
+
+  build_java_launcher
+endRoutine
+
+routine build_java_launcher
+  if (System.os == "Windows") return
+  local launcher_filepath = "$/boss" (Build.BINDIR)
+  if (File.exists(launcher_filepath)) return
+  println "-------------------------------------------------------------------------------"
+  println "Creating $/boss launcher linked to $" (Build.BINDIR,Build.BOSS_EXE)
+  println "-------------------------------------------------------------------------------"
+  create_bindir
+  local folder = Process.run( "pwd" ).output_string.before_first('\n')
+  local script = "#!/bin/sh\n"
+  script += ''java --class-path "$/Build/Java" boss.vm.BossVM'' (folder)
+  File.save( "launcher.script", script )
+  execute "$cp launcher.script $/boss" (Build.SUDO_CMD,Build.BINDIR)
+  execute "$chmod a+x $/boss" (Build.SUDO_CMD,Build.BINDIR)
+  File.delete( "launcher.script" )
+endRoutine
+
+routine rogo_build_rogue
   File.create_folder( "Build/Rogue" )
   if (Files("Source/Rogue","**.rogue").any_newer_than(Build.BOSS_EXE))
     execute( "roguec Source/Rogue/Console/Main.rogue --debug --libraries=Source/Rogue --output=$ --compile" (Build.BOSS_EXE) )
   endIf
-  build_launcher
+  build_rogue_launcher
 endRoutine
 
-routine build_launcher
+routine build_rogue_launcher
   if (System.os == "Windows") return
   local launcher_filepath = "$/boss" (Build.BINDIR)
   if (File.exists(launcher_filepath)) return
@@ -86,8 +126,7 @@ routine create_bindir
 endRoutine
 
 routine rogo_run
-  local exe = "Build/Rogue/Boss-$" (System.os)
-  execute( "$" (exe) )
+  execute( "boss" )
 endRoutine
 
 routine execute( commands:String, &suppress_error )->Logical
