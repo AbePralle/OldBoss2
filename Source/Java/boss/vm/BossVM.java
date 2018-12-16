@@ -2,6 +2,7 @@ package boss.vm;
 
 import java.io.*;
 import java.util.*;
+import java.nio.*;
 
 public class BossVM
 {
@@ -9,28 +10,18 @@ public class BossVM
 
   static public void main( String[] args )
   {
-    BossStringIntLookup table = new BossStringIntLookup();
-
-    System.out.println( table.add( "C" ) );
-    System.out.println( table.add( "A" ) );
-    System.out.println( table.add( "B" ) );
-    System.out.println();
-
-    System.out.println( table.add( "C" ) );
-    System.out.println( table.add( "A" ) );
-    System.out.println( table.add( "B" ) );
-    System.out.println();
-
-    System.out.println( table.get( 0 ) );
-    System.out.println( table.get( 1 ) );
-    System.out.println( table.get( 2 ) );
-    System.out.println();
-
-    System.out.println( "Hello World!" );
+    new BossVM();
   }
 
   public BossVM()
   {
+    System.out.println( tokens.stringIndex("METHODS") );
+    BossStringBuilder builder = new BossStringBuilder();
+    builder.print("METH").print("ODS");
+    System.out.println( tokens.stringIndex(builder) );
+    System.out.println( builder.clear().print("Abe").hashCode() );
+    System.out.println( builder.clear().print('A').print('b').print('e').hashCode() );
   }
+
 }
 

@@ -20,6 +20,11 @@ public class BossIntList
     data[ count++ ] = value;
   }
 
+  public int capacity()
+  {
+    return (data == null) ? 0 : data.length;
+  }
+
   public void clear()
   {
     count = 0;
@@ -90,7 +95,7 @@ public class BossIntList
         if (doubleCapacity > requiredCapacity) requiredCapacity = doubleCapacity;
         int[] newData = new int[ requiredCapacity ];
         int[] data = this.data;
-        for (int i=requiredCapacity; --i>=0; )
+        for (int i=count; --i>=0; )
         {
           newData[i] = data[i];
         }
@@ -102,5 +107,18 @@ public class BossIntList
   public void set( int index, int value )
   {
     data[ index ] = value;
+  }
+
+  public String toString()
+  {
+    StringBuilder builder = new StringBuilder();
+    builder.append( '[' );
+    for (int i=0; i<count; ++i)
+    {
+      if (i > 0) builder.append( ',' );
+      builder.append( get(i) );
+    }
+    builder.append( ']' );
+    return builder.toString();
   }
 }

@@ -5,12 +5,22 @@ import java.util.*;
 
 public class BossTokens
 {
+  // DEFINITIONS
+  final static int TOKEN_DEF_FLAGS_OFFSET     = 0;
+  final static int TOKEN_DEF_NAME_OFFSET      = 1;
+
+  final static int TOKEN_DATA_TYPE_OFFSET     = 0;
+  final static int TOKEN_DATA_CONTENT_OFFSET  = 1;
+  final static int TOKEN_DATA_FILEPATH_OFFSET = 2;
+  final static int TOKEN_DATA_LINE_OFFSET     = 3;
+  final static int TOKEN_DATA_COLUMN_OFFSET   = 4;
+
+
   // PROPERTIES
-  public BossIntList definitions = new BossIntList( 256 );     // [flags, name string index]
-  public BossIntList   tokenData = new BossIntList( 8192 );    // [type, content value/index, filepath index, line, column]
-  public BossStringList  strings = new BossStringList( 512 );
-  public BossDoubleList  reals   = new BossDoubleList( 512 );
-  public BossStringIntLookup stringLookup = new BossStringIntLookup();
+  public BossIntList     definitions = new BossIntList( 256 );     // [flags, name string index]
+  public BossIntList       tokenData = new BossIntList( 8192 );    // [type, content value/index, filepath index, line, column]
+  public BossDoubleList        reals = new BossDoubleList( 512 );
+  public BossStringIntLookup strings = new BossStringIntLookup();
 
   int    nextFilepath;
   int    nextLine;
@@ -19,9 +29,9 @@ public class BossTokens
   // METHODS
   public BossTokens()
   {
-    int isKeyword    = BossTokenType.KEYWORD;
-    int isSymbol     = BossTokenType.SYMBOL;
-    int isStructural = BossTokenType.STRUCTURAL;
+    int isKeyword    = BossTokenType.IS_KEYWORD;
+    int isSymbol     = BossTokenType.IS_SYMBOL;
+    int isStructural = BossTokenType.IS_STRUCTURAL;
 
     define( BossTokenType.EOI,        "[end of input]", isStructural );
     define( BossTokenType.EOL,        "[end of line]",  isSymbol );
@@ -83,6 +93,23 @@ public class BossTokens
     define( BossTokenType.SYMBOL_SLASH,         "/",   isSymbol );
     define( BossTokenType.SYMBOL_TILDE,         "~",   isSymbol );
     define( BossTokenType.SYMBOL_VERTICAL_BAR,  "|",   isSymbol );
+
+    setFilepath( "[BossVM]" );
+  }
+
+  public int column( int token )
+  {
+    return tokenData.get( token+TOKEN_DATA_COLUMN_OFFSET );
+  }
+
+  public int content( int token )
+  {
+    return tokenData.get( token+TOKEN_DATA_CONTENT_OFFSET );
+  }
+
+  public String contentString( int token )
+  {
+    return string( content(token) );
   }
 
   public void define( int tokenType, String name, int flags )
@@ -94,14 +121,60 @@ public class BossTokens
     definitions.set( index+1, stringIndex(name) );
   }
 
+  public String filepath( int token )
+  {
+    return string( tokenData.get(token+TOKEN_DATA_FILEPATH_OFFSET) );
+  }
+
+  public boolean isKeyword( int token )
+  {
+    return (definitions.get( tokenData.get(token)*2 ) & BossTokenType.IS_KEYWORD) != 0;
+  }
+
+  public boolean isStructural( int token )
+  {
+    return (definitions.get( tokenData.get(token)*2 ) & BossTokenType.IS_STRUCTURAL) != 0;
+  }
+
+  public boolean isSymbol( int token )
+  {
+    return (definitions.get( tokenData.get(token)*2 ) & BossTokenType.IS_SYMBOL) != 0;
+  }
+
+  public int line( int token )
+  {
+    return tokenData.get( token+TOKEN_DATA_LINE_OFFSET );
+  }
+
+  public String name( int token )
+  {
+    return string( definitions.get( tokenData.get(token)*2 + TOKEN_DEF_NAME_OFFSET ) );
+  }
+
   public void setFilepath( String nextFilepath )
   {
     this.nextFilepath = stringIndex( nextFilepath );
   }
 
+  public void setSource( int line, int column )
+  {
+    this.nextLine = line;
+    this.nextColumn = column;
+  }
+
+  public String string( int index )
+  {
+    return strings.get( index );
+  }
+
   public int stringIndex( String value )
   {
-    return stringLookup.add( value );
+    return strings.add( value );
+  }
+
+  public int stringIndex( BossStringBuilder value )
+  {
+    return strings.add( value );
   }
 
   public int token( int type )
@@ -132,5 +205,11 @@ public class BossTokens
   {
     return token( type, stringIndex(content) );
   }
+
+  public int type( int index )
+  {
+    return tokenData.get( index );
+  }
+
 }
 

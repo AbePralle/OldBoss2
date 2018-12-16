@@ -88,7 +88,7 @@ public class BossStringList
         if (doubleCapacity > requiredCapacity) requiredCapacity = doubleCapacity;
         String[] newData = new String[ requiredCapacity ];
         String[] data = this.data;
-        for (int i=requiredCapacity; --i>=0; )
+        for (int i=count; --i>=0; )
         {
           newData[i] = data[i];
         }
@@ -100,5 +100,18 @@ public class BossStringList
   public void set( int index, String value )
   {
     data[ index ] = value;
+  }
+
+  public String toString()
+  {
+    StringBuilder builder = new StringBuilder();
+    builder.append( '[' );
+    for (int i=0; i<count; ++i)
+    {
+      if (i > 0) builder.append( ',' );
+      builder.append( get(i) );
+    }
+    builder.append( ']' );
+    return builder.toString();
   }
 }

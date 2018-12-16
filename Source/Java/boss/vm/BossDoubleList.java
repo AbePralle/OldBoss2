@@ -90,7 +90,7 @@ public class BossDoubleList
         if (doubleCapacity > requiredCapacity) requiredCapacity = doubleCapacity;
         double[] newData = new double[ requiredCapacity ];
         double[] data = this.data;
-        for (int i=requiredCapacity; --i>=0; )
+        for (int i=count; --i>=0; )
         {
           newData[i] = data[i];
         }
@@ -102,5 +102,18 @@ public class BossDoubleList
   public void set( int index, double value )
   {
     data[ index ] = value;
+  }
+
+  public String toString()
+  {
+    StringBuilder builder = new StringBuilder();
+    builder.append( '[' );
+    for (int i=0; i<count; ++i)
+    {
+      if (i > 0) builder.append( ',' );
+      builder.append( get(i) );
+    }
+    builder.append( ']' );
+    return builder.toString();
   }
 }
