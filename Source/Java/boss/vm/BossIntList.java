@@ -1,6 +1,6 @@
 package boss.vm;
 
-class BossIntList
+public class BossIntList
 {
   public int[] data;
   public int   count;
@@ -45,9 +45,31 @@ class BossIntList
     }
   }
 
+  public int first()
+  {
+    return data[ 0 ];
+  }
+
   public int get( int index )
   {
     return data[ index ];
+  }
+
+  public void insert( int value, int atIndex )
+  {
+    reserve( 1 );
+    int[] data = this.data;
+    for (int i=count; --i>=atIndex; )
+    {
+      data[i+1] = data[i];
+    }
+    data[ atIndex ] = value;
+    ++count;
+  }
+
+  public int last()
+  {
+    return data[ count-1 ];
   }
 
   public void reserve( int additionalElementCount )

@@ -1,6 +1,6 @@
 package boss.vm;
 
-class BossDoubleList
+public class BossDoubleList
 {
   public double[] data;
   public int      count;
@@ -45,9 +45,31 @@ class BossDoubleList
     }
   }
 
+  public double first()
+  {
+    return data[ 0 ];
+  }
+
   public double get( int index )
   {
     return data[ index ];
+  }
+
+  public void insert( double value, int atIndex )
+  {
+    reserve( 1 );
+    double[] data = this.data;
+    for (int i=count; --i>=atIndex; )
+    {
+      data[i+1] = data[i];
+    }
+    data[ atIndex ] = value;
+    ++count;
+  }
+
+  public double last()
+  {
+    return data[ count-1 ];
   }
 
   public void reserve( int additionalElementCount )

@@ -10,7 +10,7 @@ public class BossTokens
   public BossIntList   tokenData = new BossIntList( 8192 );    // [type, content value/index, filepath index, line, column]
   public BossStringList  strings = new BossStringList( 512 );
   public BossDoubleList  reals   = new BossDoubleList( 512 );
-  public HashMap<String,Integer> stringLookup = new HashMap<String,Integer>();
+  public BossStringIntLookup stringLookup = new BossStringIntLookup();
 
   int    nextFilepath;
   int    nextLine;
@@ -101,18 +101,7 @@ public class BossTokens
 
   public int stringIndex( String value )
   {
-    // TODO: maybe replace HashMap with an efficient custom hash lookup to avoid Integer objects
-    Integer existingIndex = stringLookup.get( value );
-    if (existingIndex != null)
-    {
-      return (int) existingIndex;
-    }
-    else
-    {
-      stringLookup.put( value, strings.count );
-      strings.add( value );
-      return strings.count - 1;
-    }
+    return stringLookup.add( value );
   }
 
   public int token( int type )
@@ -135,7 +124,6 @@ public class BossTokens
 
   public int token( int type, double content )
   {
-    // TODO: maybe consolidate reals with an efficient custom hash lookup
     reals.add( content );
     return token( type, reals.count - 1 );
   }

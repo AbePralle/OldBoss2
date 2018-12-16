@@ -1,6 +1,6 @@
 package boss.vm;
 
-class BossStringList
+public class BossStringList
 {
   public String[] data;
   public int      count;
@@ -43,9 +43,31 @@ class BossStringList
     }
   }
 
+  public String first()
+  {
+    return data[ 0 ];
+  }
+
   public String get( int index )
   {
     return data[ index ];
+  }
+
+  public void insert( String value, int atIndex )
+  {
+    reserve( 1 );
+    String[] data = this.data;
+    for (int i=count; --i>=atIndex; )
+    {
+      data[i+1] = data[i];
+    }
+    data[ atIndex ] = value;
+    ++count;
+  }
+
+  public String last()
+  {
+    return data[ count-1 ];
   }
 
   public void reserve( int additionalElementCount )
